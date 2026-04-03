@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "BrowDesk",
+    "slug": "browdesk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "scheme": "browdesk",
+    "splash": {
+      "backgroundColor": "#1A1A1A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.browdesk.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Usa Face ID para desbloquear la aplicacion",
+        "NSPhotoLibraryUsageDescription": "Accede a tus fotos para guardar imagenes de procedimientos",
+        "NSCameraUsageDescription": "Toma fotos de antes y despues de los procedimientos"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1A1A1A"
+      },
+      "package": "com.browdesk.app",
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Usa Face ID para desbloquear BrowDesk"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Accede a tus fotos para guardar imagenes de procedimientos",
+          "cameraPermission": "Toma fotos de antes y despues de los procedimientos"
+        }
+      ]
+    ]
+  }
+}
