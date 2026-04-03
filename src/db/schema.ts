@@ -41,6 +41,8 @@ export const procedures = sqliteTable("procedures", {
   cost: real("cost").notNull(),
   guarantee: integer("guarantee", { mode: "boolean" }),
   guaranteeDays: integer("guarantee_days"),
+  tones: text("tones"), // JSON: ToneEntry[]
+  needles: text("needles"), // JSON: NeedleEntry[]
   notes: text("notes"),
   date: text("date").notNull(),
   followUpDate: text("follow_up_date"),

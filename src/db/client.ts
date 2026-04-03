@@ -132,6 +132,8 @@ export async function initializeDatabase(): Promise<void> {
     "zone_details TEXT",
     "guarantee INTEGER",
     "guarantee_days INTEGER",
+    "tones TEXT",
+    "needles TEXT",
     "before_photo_id TEXT",
     "after_photo_id TEXT",
   ];

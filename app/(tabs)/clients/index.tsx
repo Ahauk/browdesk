@@ -13,7 +13,7 @@ import { SearchBar, Avatar } from "@/components/ui";
 import { FloatingActionButton } from "@/components/layout/FloatingActionButton";
 import { useClients } from "@/hooks/useClients";
 import type { Client } from "@/types/models";
-import { fullName } from "@/utils/format";
+import { fullName, formatDate } from "@/utils/format";
 import { colors, spacing, radius } from "@/theme";
 
 function ClientRow({
@@ -45,7 +45,10 @@ function ClientRow({
           <Text style={styles.clientPhone}>{client.phone}</Text>
         </View>
       </View>
-      <Text style={styles.chevron}>{">"}</Text>
+      <View style={styles.clientRight}>
+        <Text style={styles.clientDate}>{formatDate(client.createdAt)}</Text>
+        <Text style={styles.chevron}>{"›"}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -169,6 +172,14 @@ const styles = StyleSheet.create({
   clientPhone: {
     color: colors.textSecondary,
     fontSize: 13,
+  },
+  clientRight: {
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  clientDate: {
+    color: colors.textLight,
+    fontSize: 11,
   },
   chevron: {
     color: colors.textSecondary,

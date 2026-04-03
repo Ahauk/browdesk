@@ -38,6 +38,17 @@ export interface Client {
   hypertension?: boolean;
 }
 
+export interface ToneEntry {
+  color: string;
+  drops: number;
+}
+
+export interface NeedleEntry {
+  type: string; // RM, RL, M1, F, etc.
+  gauge: string; // 03, 05, 08, etc.
+  count: number; // number of needles
+}
+
 export interface Procedure {
   id: string;
   clientId: string;
@@ -48,6 +59,10 @@ export interface Procedure {
   cost: number;
   guarantee?: boolean;
   guaranteeDays?: number;
+  // Tones used (JSON stringified ToneEntry[])
+  tones?: string;
+  // Needles used (JSON stringified NeedleEntry[])
+  needles?: string;
   notes?: string;
   date: string;
   followUpDate?: string;

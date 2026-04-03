@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { Avatar, Card } from "@/components/ui";
 import { useClients } from "@/hooks/useClients";
 import { useProcedures } from "@/hooks/useProcedures";
@@ -121,6 +122,22 @@ export default function ClientDetailScreen() {
             {client.firstName} {client.lastName}
           </Text>
           <Text style={styles.clientPhone}>{client.phone}</Text>
+
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/procedures/new",
+                params: {
+                  clientId: client.id,
+                  clientName: `${client.firstName} ${client.lastName}`,
+                },
+              })
+            }
+            style={styles.procedureButton}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={colors.white} />
+            <Text style={styles.procedureButtonText}>Registrar procedimiento</Text>
+          </Pressable>
         </View>
 
         {/* Tabs */}
@@ -288,6 +305,21 @@ const styles = StyleSheet.create({
   clientPhone: {
     color: colors.textSecondary,
     fontSize: 15,
+  },
+  procedureButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  procedureButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: "600",
   },
   tabsRow: {
     flexDirection: "row",
