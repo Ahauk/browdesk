@@ -98,12 +98,13 @@ export default function HomeScreen() {
     setRecentProcedures(withNames);
   }, []);
 
-  // Refresh all data when screen comes into focus
+  // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadRecent();
-      sync();
-    }, [loadRecent, sync])
+      // Sync in background, don't block UI
+      sync().catch(() => {});
+    }, [loadRecent])
   );
 
   return (

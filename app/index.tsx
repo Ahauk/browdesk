@@ -150,7 +150,7 @@ export default function SplashScreen() {
     setTimeout(startShimmer, 1400);
 
     const timeout = setTimeout(() => {
-      router.replace("/unlock");
+      router.replace("/(tabs)");
     }, 5000);
 
     return () => clearTimeout(timeout);

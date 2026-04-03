@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
-import Constants from "expo-constants";
 import Svg, { Path } from "react-native-svg";
 import {
   authenticateWithBiometric,
@@ -15,8 +14,8 @@ import { useAuthStore } from "@/stores/auth.store";
 import { BrandLogo } from "@/components/ui";
 import { colors, spacing, radius } from "@/theme";
 
-// In Expo Go, biometrics don't work — skip auth in dev
-const isExpoGo = Constants.appOwnership === "expo";
+// In dev mode, skip auth (biometrics don't work in Expo Go)
+const isDev = __DEV__;
 
 type Screen = "loading" | "biometric" | "pin" | "setup-pin";
 
@@ -93,7 +92,7 @@ export default function UnlockScreen() {
 
   const handleBiometricAuth = useCallback(async () => {
     // Skip auth entirely in Expo Go (dev mode)
-    if (isExpoGo) {
+    if (isDev) {
       await unlock();
       return;
     }

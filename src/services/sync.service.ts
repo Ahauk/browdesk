@@ -15,6 +15,21 @@ type SyncResult = {
   errors: number;
 };
 
+// Fields that exist only locally and should NOT be sent to Supabase
+const LOCAL_ONLY_FIELDS = new Set(["syncedAt", "synced_at"]);
+
+// Convert camelCase JS keys to snake_case for Supabase, removing local-only fields
+function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (LOCAL_ONLY_FIELDS.has(key)) continue;
+    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    if (LOCAL_ONLY_FIELDS.has(snakeKey)) continue;
+    result[snakeKey] = value;
+  }
+  return result;
+}
+
 async function syncTable(
   localTable: typeof clients | typeof procedures | typeof appointments | typeof followUps,
   remoteTableName: string
@@ -29,9 +44,10 @@ async function syncTable(
 
   for (const record of unsynced) {
     try {
+      const snakeRecord = toSnakeCase(record as Record<string, unknown>);
       const { error } = await supabase
         .from(remoteTableName)
-        .upsert(record, { onConflict: "id" });
+        .upsert(snakeRecord, { onConflict: "id" });
 
       if (error) {
         console.error(`Sync error for ${remoteTableName}:`, error);
@@ -86,7 +102,7 @@ export async function syncAll(): Promise<SyncResult> {
     for (const photo of unsyncedPhotos) {
       const { error } = await supabase
         .from("photos")
-        .upsert(photo, { onConflict: "id" });
+        .upsert(toSnakeCase(photo as Record<string, unknown>), { onConflict: "id" });
 
       if (!error) {
         const now = new Date().toISOString();
