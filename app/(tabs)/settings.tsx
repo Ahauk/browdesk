@@ -1,8 +1,9 @@
-import { View, Text, Pressable, Switch } from "react-native";
+import { View, Text, Pressable, Switch, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Avatar, Card, Button } from "@/components/ui";
 import { useState } from "react";
+import { colors, spacing, radius } from "@/theme";
 
 function SettingsRow({
   label,
@@ -14,12 +15,9 @@ function SettingsRow({
   trailing?: React.ReactNode;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      className="flex-row items-center justify-between py-4 border-b border-gray-100"
-    >
-      <Text className="text-brand-black text-base">{label}</Text>
-      {trailing || <Text className="text-brand-gray text-lg">{">"}</Text>}
+    <Pressable onPress={onPress} style={styles.settingsRow}>
+      <Text style={styles.settingsLabel}>{label}</Text>
+      {trailing || <Text style={styles.chevron}>{">"}</Text>}
     </Pressable>
   );
 }
@@ -29,30 +27,28 @@ export default function SettingsScreen() {
   const [biometricEnabled, setBiometricEnabled] = useState(true);
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-beige" edges={["top"]}>
-      <View className="px-6 pt-4 pb-6">
-        <Text className="text-brand-black text-xl font-bold">Ajustes</Text>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Ajustes</Text>
       </View>
 
       {/* Profile */}
-      <View className="items-center py-6">
+      <View style={styles.profileSection}>
         <Avatar firstName="Carolina" lastName="Vazquez" size="lg" />
-        <Text className="text-brand-black text-lg font-bold mt-3">
-          Carolina Vazquez
-        </Text>
+        <Text style={styles.profileName}>Carolina Vazquez</Text>
       </View>
 
       {/* Settings sections */}
-      <View className="px-6">
-        <Card variant="light" className="mb-4">
+      <View style={styles.settingsContainer}>
+        <Card variant="light" style={styles.settingsCard}>
           <SettingsRow
             label="Seguridad"
             trailing={
               <Switch
                 value={biometricEnabled}
                 onValueChange={setBiometricEnabled}
-                trackColor={{ false: "#ccc", true: "#C4A87C" }}
-                thumbColor="#fff"
+                trackColor={{ false: "#ccc", true: colors.accent }}
+                thumbColor={colors.white}
               />
             }
           />
@@ -60,7 +56,7 @@ export default function SettingsScreen() {
           <SettingsRow label="Exportar respaldo" />
         </Card>
 
-        <View className="mt-6">
+        <View style={styles.saveButtonContainer}>
           <Button
             title="Guardar"
             onPress={() => {
@@ -73,3 +69,55 @@ export default function SettingsScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  header: {
+    paddingHorizontal: spacing["2xl"],
+    paddingTop: spacing.lg,
+    paddingBottom: spacing["2xl"],
+  },
+  headerTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  profileSection: {
+    alignItems: "center",
+    paddingVertical: spacing["2xl"],
+  },
+  profileName: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "bold",
+    marginTop: 12,
+  },
+  settingsContainer: {
+    paddingHorizontal: spacing["2xl"],
+  },
+  settingsCard: {
+    marginBottom: 16,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  settingsLabel: {
+    color: colors.text,
+    fontSize: 15,
+  },
+  chevron: {
+    color: colors.textSecondary,
+    fontSize: 17,
+  },
+  saveButtonContainer: {
+    marginTop: spacing["2xl"],
+  },
+});

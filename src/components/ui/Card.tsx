@@ -1,34 +1,36 @@
-import { View, Pressable } from "react-native";
+import { View, Pressable, StyleSheet, ViewStyle } from "react-native";
+import { colors, spacing, radius } from "@/theme";
 
 interface CardProps {
   children: React.ReactNode;
   variant?: "light" | "dark";
   onPress?: () => void;
-  className?: string;
+  style?: ViewStyle;
 }
+
+const variantStyles: Record<string, ViewStyle> = {
+  light: { backgroundColor: colors.white },
+  dark: { backgroundColor: colors.brand.dark },
+};
 
 export function Card({
   children,
   variant = "light",
   onPress,
-  className = "",
+  style,
 }: CardProps) {
-  const variantClasses = {
-    light: "bg-white",
-    dark: "bg-brand-dark",
-  };
-
   const content = (
-    <View
-      className={`rounded-2xl p-4 ${variantClasses[variant]} ${className}`}
-    >
+    <View style={[styles.card, variantStyles[variant], style]}>
       {children}
     </View>
   );
 
   if (onPress) {
     return (
-      <Pressable onPress={onPress} className="active:opacity-90">
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
         {content}
       </Pressable>
     );
@@ -36,3 +38,13 @@ export function Card({
 
   return content;
 }
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: radius["2xl"],
+    padding: spacing.lg,
+  },
+  pressed: {
+    opacity: 0.9,
+  },
+});

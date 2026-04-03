@@ -16,13 +16,24 @@ export async function initializeDatabase(): Promise<void> {
       last_name TEXT NOT NULL,
       phone TEXT NOT NULL,
       email TEXT,
+      age INTEGER,
+      address TEXT,
+      emergency_contact TEXT,
+      emergency_phone TEXT,
+      emergency_relation TEXT,
+      referral_source TEXT,
+      fitzpatrick_type INTEGER,
+      medical_conditions TEXT,
+      clinical_answers TEXT,
+      allergies_detail TEXT,
+      medications_detail TEXT,
       notes TEXT,
+      avatar_uri TEXT,
       allergies TEXT,
       conditions TEXT,
       diabetes INTEGER NOT NULL DEFAULT 0,
       pregnancy INTEGER NOT NULL DEFAULT 0,
       hypertension INTEGER NOT NULL DEFAULT 0,
-      avatar_uri TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       synced_at TEXT
@@ -33,10 +44,15 @@ export async function initializeDatabase(): Promise<void> {
       client_id TEXT NOT NULL REFERENCES clients(id),
       type TEXT NOT NULL,
       technique TEXT NOT NULL,
+      zone_details TEXT,
       cost REAL NOT NULL,
+      guarantee INTEGER,
+      guarantee_days INTEGER,
       notes TEXT,
       date TEXT NOT NULL,
       follow_up_date TEXT,
+      before_photo_id TEXT,
+      after_photo_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       synced_at TEXT
@@ -44,7 +60,7 @@ export async function initializeDatabase(): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS photos (
       id TEXT PRIMARY KEY,
-      procedure_id TEXT NOT NULL REFERENCES procedures(id),
+      procedure_id TEXT,
       client_id TEXT NOT NULL REFERENCES clients(id),
       type TEXT NOT NULL,
       local_uri TEXT NOT NULL,
@@ -89,4 +105,41 @@ export async function initializeDatabase(): Promise<void> {
       updated_at TEXT NOT NULL
     );
   `);
+
+  // Add new columns to existing tables (safe ALTER — ignores if already exists)
+  const newClientColumns = [
+    "age INTEGER",
+    "address TEXT",
+    "emergency_contact TEXT",
+    "emergency_phone TEXT",
+    "emergency_relation TEXT",
+    "referral_source TEXT",
+    "fitzpatrick_type INTEGER",
+    "medical_conditions TEXT",
+    "clinical_answers TEXT",
+    "allergies_detail TEXT",
+    "medications_detail TEXT",
+  ];
+  for (const col of newClientColumns) {
+    try {
+      expoDb.execSync(`ALTER TABLE clients ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists
+    }
+  }
+
+  const newProcColumns = [
+    "zone_details TEXT",
+    "guarantee INTEGER",
+    "guarantee_days INTEGER",
+    "before_photo_id TEXT",
+    "after_photo_id TEXT",
+  ];
+  for (const col of newProcColumns) {
+    try {
+      expoDb.execSync(`ALTER TABLE procedures ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists
+    }
+  }
 }

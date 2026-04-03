@@ -1,10 +1,10 @@
-import "../global.css";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { initializeDatabase } from "@/db/client";
 import { useAppStore } from "@/stores/app.store";
+import { colors } from "@/theme";
 
 export default function RootLayout() {
   const { isDbReady, setDbReady } = useAppStore();
@@ -23,8 +23,8 @@ export default function RootLayout() {
 
   if (!isDbReady) {
     return (
-      <View className="flex-1 items-center justify-center bg-brand-black">
-        <ActivityIndicator color="#C4A87C" size="large" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator color={colors.brand.rose} size="large" />
         <StatusBar style="light" />
       </View>
     );
@@ -35,22 +35,54 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: "#1A1A1A" },
           animation: "fade",
         }}
       >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="unlock" />
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="index"
+          options={{ contentStyle: { backgroundColor: colors.brand.black } }}
+        />
+        <Stack.Screen
+          name="unlock"
+          options={{ contentStyle: { backgroundColor: colors.brand.black } }}
+        />
+        <Stack.Screen
+          name="(tabs)"
+          options={{ contentStyle: { backgroundColor: colors.brand.ivory } }}
+        />
+        <Stack.Screen
+          name="clients/new"
+          options={{
+            animation: "slide_from_right",
+            contentStyle: { backgroundColor: colors.brand.ivory },
+          }}
+        />
+        <Stack.Screen
+          name="clients/[id]"
+          options={{
+            animation: "slide_from_right",
+            contentStyle: { backgroundColor: colors.brand.ivory },
+          }}
+        />
         <Stack.Screen
           name="procedures/new"
           options={{
             presentation: "modal",
             animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: colors.brand.ivory },
           }}
         />
       </Stack>
-      <StatusBar style="light" />
+      <StatusBar style="auto" />
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brand.black,
+  },
+});

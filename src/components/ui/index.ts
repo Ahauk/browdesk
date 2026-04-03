@@ -4,3 +4,4 @@ export { Input } from "./Input";
 export { Avatar } from "./Avatar";
 export { Badge } from "./Badge";
 export { SearchBar } from "./SearchBar";
+export { BrandLogo } from "./BrandLogo";

@@ -1,4 +1,5 @@
-import { View, TextInput, Text } from "react-native";
+import { View, TextInput, Text, StyleSheet, TextStyle, ViewStyle } from "react-native";
+import { colors, spacing, radius } from "@/theme";
 
 interface InputProps {
   label?: string;
@@ -11,7 +12,19 @@ interface InputProps {
   numberOfLines?: number;
   secureTextEntry?: boolean;
   editable?: boolean;
+  maxLength?: number;
+  error?: string;
 }
+
+const inputVariantStyles: Record<string, TextStyle> = {
+  light: { backgroundColor: colors.gray100, color: colors.brand.black },
+  dark: { backgroundColor: colors.brand.dark, color: colors.white },
+};
+
+const labelVariantStyles: Record<string, TextStyle> = {
+  light: { color: colors.brand.black },
+  dark: { color: colors.white },
+};
 
 export function Input({
   label,
@@ -24,21 +37,13 @@ export function Input({
   numberOfLines = 1,
   secureTextEntry = false,
   editable = true,
+  maxLength,
+  error,
 }: InputProps) {
-  const inputVariant = {
-    light: "bg-gray-100 text-brand-black placeholder:text-brand-gray",
-    dark: "bg-brand-dark text-white placeholder:text-brand-gray",
-  };
-
-  const labelVariant = {
-    light: "text-brand-black",
-    dark: "text-white",
-  };
-
   return (
-    <View className="gap-1.5">
+    <View style={styles.container}>
       {label && (
-        <Text className={`text-sm font-medium ${labelVariant[variant]}`}>
+        <Text style={[styles.label, labelVariantStyles[variant]]}>
           {label}
         </Text>
       )}
@@ -46,16 +51,50 @@ export function Input({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#8A8A8A"
+        placeholderTextColor={colors.brand.gray}
         keyboardType={keyboardType}
         multiline={multiline}
         numberOfLines={numberOfLines}
         secureTextEntry={secureTextEntry}
         editable={editable}
-        className={`rounded-xl px-4 py-3 text-base ${inputVariant[variant]} ${
-          multiline ? "min-h-[100px] text-top" : ""
-        }`}
+        maxLength={maxLength}
+        style={[
+          styles.input,
+          inputVariantStyles[variant],
+          multiline && styles.multiline,
+          error ? styles.inputError : undefined,
+        ]}
       />
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    gap: 6,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  input: {
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    fontSize: 15,
+  },
+  multiline: {
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  inputError: {
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 12,
+    marginTop: 2,
+  },
+});

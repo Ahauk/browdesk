@@ -71,15 +71,26 @@ export function useClients() {
     ): Promise<Client | null> => {
       try {
         const now = new Date().toISOString();
-        const newClient: Client = {
-          ...input,
+        const newClient = {
           id: uuid(),
+          firstName: input.firstName,
+          lastName: input.lastName,
+          phone: input.phone,
+          email: input.email ?? null,
+          notes: input.notes ?? null,
+          allergies: input.allergies ?? null,
+          conditions: input.conditions ?? null,
+          diabetes: input.diabetes ?? false,
+          pregnancy: input.pregnancy ?? false,
+          hypertension: input.hypertension ?? false,
+          avatarUri: input.avatarUri ?? null,
           createdAt: now,
           updatedAt: now,
+          syncedAt: null,
         };
         await db.insert(clients).values(newClient);
         await fetchClients();
-        return newClient;
+        return { ...newClient, syncedAt: undefined } as unknown as Client;
       } catch (error) {
         console.error("Error creating client:", error);
         return null;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Pressable,
   Alert,
   Image,
+  StyleSheet,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,7 +20,8 @@ import {
   scheduleFollowUpReminder,
 } from "@/services/notification.service";
 import { fullName } from "@/utils/format";
-import type { ProcedureType, Client } from "@/types/models";
+import { colors, spacing, radius } from "@/theme";
+import type { ProcedureType } from "@/types/models";
 import dayjs from "dayjs";
 
 export default function NewProcedureScreen() {
@@ -116,47 +118,45 @@ export default function NewProcedureScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-black" edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
-      <View className="px-6 pt-2 pb-4 flex-row items-center justify-between">
+      <View style={styles.header}>
         <Pressable onPress={() => router.back()}>
-          <Text className="text-brand-gold text-base">{"< Atras"}</Text>
+          <Text style={styles.backText}>{"< Atras"}</Text>
         </Pressable>
-        <Text className="text-white text-lg font-semibold">
-          Nuevo procedimiento
-        </Text>
-        <View className="w-12" />
+        <Text style={styles.headerTitle}>Nuevo procedimiento</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
-        className="flex-1 px-6"
+        style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Client selector */}
         {!params.clientId && (
-          <View className="mb-6">
-            <Text className="text-white text-sm font-medium mb-3">
-              Clienta
-            </Text>
+          <View style={styles.sectionSpaced}>
+            <Text style={styles.sectionLabel}>Clienta</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-2">
+              <View style={styles.chipRow}>
                 {clients.map((client) => (
                   <Pressable
                     key={client.id}
                     onPress={() => setSelectedClientId(client.id)}
-                    className={`px-4 py-2 rounded-full ${
+                    style={[
+                      styles.chip,
                       selectedClientId === client.id
-                        ? "bg-brand-gold"
-                        : "border border-brand-dark"
-                    }`}
+                        ? styles.chipSelected
+                        : styles.chipUnselected,
+                    ]}
                   >
                     <Text
-                      className={`text-sm ${
+                      style={[
+                        styles.chipText,
                         selectedClientId === client.id
-                          ? "text-brand-black font-semibold"
-                          : "text-white"
-                      }`}
+                          ? styles.chipTextSelected
+                          : styles.chipTextUnselected,
+                      ]}
                     >
                       {client.firstName} {client.lastName}
                     </Text>
@@ -168,9 +168,9 @@ export default function NewProcedureScreen() {
         )}
 
         {/* Procedure type */}
-        <View className="mb-6">
-          <Text className="text-white text-sm font-medium mb-3">Tipo</Text>
-          <View className="flex-row flex-wrap gap-2">
+        <View style={styles.sectionSpaced}>
+          <Text style={styles.sectionLabel}>Tipo</Text>
+          <View style={styles.typeGrid}>
             {PROCEDURE_TYPES.map((type) => (
               <Pressable
                 key={type.key}
@@ -187,76 +187,76 @@ export default function NewProcedureScreen() {
         </View>
 
         {/* Technique */}
-        <View className="mb-4">
+        <View style={styles.inputSection}>
           <Input
             label="Tecnica"
             placeholder="Ej: Microblading"
             value={technique}
             onChangeText={setTechnique}
-            variant="dark"
+            variant="light"
           />
         </View>
 
         {/* Cost */}
-        <View className="mb-4">
+        <View style={styles.inputSection}>
           <Input
             label="Costo"
             placeholder="$0.00"
             value={cost}
             onChangeText={setCost}
-            variant="dark"
+            variant="light"
             keyboardType="numeric"
           />
         </View>
 
         {/* Notes */}
-        <View className="mb-6">
+        <View style={styles.sectionSpaced}>
           <Input
             label="Notas"
             placeholder="Notas adicionales"
             value={notes}
             onChangeText={setNotes}
-            variant="dark"
+            variant="light"
             multiline
             numberOfLines={4}
           />
         </View>
 
         {/* Photos */}
-        <View className="mb-6">
-          <Text className="text-white text-sm font-medium mb-3">Fotos</Text>
-          <View className="flex-row gap-3">
+        <View style={styles.sectionSpaced}>
+          <Text style={styles.sectionLabel}>Fotos</Text>
+          <View style={styles.photoRow}>
             <Pressable
               onPress={() => handlePickPhoto("before")}
-              className="flex-1 h-28 bg-brand-dark rounded-xl items-center justify-center overflow-hidden"
+              style={styles.photoBox}
             >
               {beforePhoto ? (
                 <Image
                   source={{ uri: beforePhoto }}
-                  className="w-full h-full"
+                  style={styles.photoImage}
                   resizeMode="cover"
                 />
               ) : (
                 <>
-                  <Text className="text-brand-gold text-2xl mb-1">+</Text>
-                  <Text className="text-brand-gray text-xs">Antes</Text>
+                  <Text style={styles.photoPlus}>+</Text>
+                  <Text style={styles.photoLabel}>Antes</Text>
                 </>
               )}
             </Pressable>
             <Pressable
               onPress={() => handlePickPhoto("after")}
-              className="flex-1 h-28 bg-brand-dark rounded-xl items-center justify-center overflow-hidden"
+              style={styles.photoBox}
             >
               {afterPhoto ? (
                 <Image
                   source={{ uri: afterPhoto }}
-                  className="w-full h-full"
+                  style={styles.photoImage}
                   resizeMode="cover"
                 />
               ) : (
                 <>
-                  <Text className="text-brand-gold text-2xl mb-1">+</Text>
-                  <Text className="text-brand-gray text-xs">Despues</Text>
+                  <Text style={styles.photoPlus}>+</Text>
+                  <Text style={styles.photoLabel}>Despues</Text>
                 </>
               )}
             </Pressable>
@@ -265,7 +265,7 @@ export default function NewProcedureScreen() {
       </ScrollView>
 
       {/* Save button */}
-      <View className="px-6 pb-8">
+      <View style={styles.bottomButton}>
         <Button
           title="Guardar"
           onPress={handleSave}
@@ -276,3 +276,107 @@ export default function NewProcedureScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.brand.ivory,
+  },
+  header: {
+    paddingHorizontal: spacing["2xl"],
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backText: {
+    color: colors.brand.rose,
+    fontSize: 15,
+  },
+  headerTitle: {
+    color: colors.brand.textPrimary,
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  headerSpacer: {
+    width: 48,
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: spacing["2xl"],
+  },
+  sectionSpaced: {
+    marginBottom: spacing["2xl"],
+  },
+  sectionLabel: {
+    color: colors.brand.textPrimary,
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 12,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: 9999,
+  },
+  chipSelected: {
+    backgroundColor: colors.brand.rose,
+  },
+  chipUnselected: {
+    borderWidth: 1,
+    borderColor: colors.brand.roseLight,
+  },
+  chipText: {
+    fontSize: 13,
+  },
+  chipTextSelected: {
+    color: colors.white,
+    fontWeight: "600",
+  },
+  chipTextUnselected: {
+    color: colors.brand.textPrimary,
+  },
+  typeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  inputSection: {
+    marginBottom: spacing.lg,
+  },
+  photoRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  photoBox: {
+    flex: 1,
+    height: 112,
+    backgroundColor: colors.brand.cream,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoPlus: {
+    color: colors.brand.rose,
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  photoLabel: {
+    color: colors.brand.textSecondary,
+    fontSize: 11,
+  },
+  bottomButton: {
+    paddingHorizontal: spacing["2xl"],
+    paddingBottom: 32,
+  },
+});

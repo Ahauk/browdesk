@@ -1,5 +1,6 @@
-import { View, Text, Image } from "react-native";
+import { View, Text, Image, StyleSheet, ViewStyle, TextStyle, ImageStyle } from "react-native";
 import { getInitials } from "@/utils/format";
+import { colors, radius } from "@/theme";
 
 interface AvatarProps {
   firstName: string;
@@ -8,10 +9,10 @@ interface AvatarProps {
   size?: "sm" | "md" | "lg";
 }
 
-const sizeMap = {
-  sm: { container: "h-10 w-10", text: "text-sm" },
-  md: { container: "h-12 w-12", text: "text-base" },
-  lg: { container: "h-20 w-20", text: "text-2xl" },
+const sizeMap: Record<string, { container: ViewStyle; text: TextStyle }> = {
+  sm: { container: { height: 40, width: 40 }, text: { fontSize: 13 } },
+  md: { container: { height: 48, width: 48 }, text: { fontSize: 15 } },
+  lg: { container: { height: 80, width: 80 }, text: { fontSize: 24 } },
 };
 
 export function Avatar({
@@ -26,19 +27,33 @@ export function Avatar({
     return (
       <Image
         source={{ uri }}
-        className={`${container} rounded-full`}
+        style={[styles.image, container as ImageStyle]}
         resizeMode="cover"
       />
     );
   }
 
   return (
-    <View
-      className={`${container} rounded-full bg-brand-beige-medium items-center justify-center`}
-    >
-      <Text className={`${text} font-semibold text-brand-gold-dark`}>
+    <View style={[styles.fallback, container]}>
+      <Text style={[styles.initials, text]}>
         {getInitials(firstName, lastName)}
       </Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  image: {
+    borderRadius: radius.full,
+  } as ImageStyle,
+  fallback: {
+    borderRadius: radius.full,
+    backgroundColor: colors.accentLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  initials: {
+    fontWeight: "600",
+    color: colors.primaryDark,
+  },
+});

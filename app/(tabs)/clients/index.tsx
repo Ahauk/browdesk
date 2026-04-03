@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { View, Text, FlatList, Pressable, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  ActivityIndicator,
+  StyleSheet,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SearchBar, Avatar } from "@/components/ui";
@@ -7,6 +14,7 @@ import { FloatingActionButton } from "@/components/layout/FloatingActionButton";
 import { useClients } from "@/hooks/useClients";
 import type { Client } from "@/types/models";
 import { fullName } from "@/utils/format";
+import { colors, spacing, radius } from "@/theme";
 
 function ClientRow({
   client,
@@ -18,9 +26,12 @@ function ClientRow({
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row items-center justify-between px-6 py-4 border-b border-gray-100 active:bg-gray-50"
+      style={({ pressed }) => [
+        styles.clientRow,
+        pressed && styles.clientRowPressed,
+      ]}
     >
-      <View className="flex-row items-center gap-3">
+      <View style={styles.clientRowLeft}>
         <Avatar
           firstName={client.firstName}
           lastName={client.lastName}
@@ -28,13 +39,13 @@ function ClientRow({
           size="md"
         />
         <View>
-          <Text className="text-brand-black text-base font-semibold">
+          <Text style={styles.clientName}>
             {fullName(client.firstName, client.lastName)}
           </Text>
-          <Text className="text-brand-gray text-sm">{client.phone}</Text>
+          <Text style={styles.clientPhone}>{client.phone}</Text>
         </View>
       </View>
-      <Text className="text-brand-gray text-lg">{">"}</Text>
+      <Text style={styles.chevron}>{">"}</Text>
     </Pressable>
   );
 }
@@ -52,22 +63,20 @@ export default function ClientsListScreen() {
   }, [search, searchClients]);
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
-      <View className="px-6 pt-4 pb-2">
-        <Text className="text-brand-black text-xl font-bold mb-4">
-          Clientas
-        </Text>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Clientas</Text>
         <SearchBar value={search} onChangeText={setSearch} />
       </View>
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#C4A87C" size="large" />
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.accent} size="large" />
         </View>
       ) : clients.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-brand-gray text-base text-center">
+        <View style={styles.centeredPadded}>
+          <Text style={styles.emptyText}>
             {search
               ? "No se encontraron clientas"
               : "Aun no hay clientas registradas"}
@@ -80,7 +89,7 @@ export default function ClientsListScreen() {
           renderItem={({ item }) => (
             <ClientRow
               client={item}
-              onPress={() => router.push(`/(tabs)/clients/${item.id}`)}
+              onPress={() => router.push(`/clients/${item.id}`)}
             />
           )}
           contentContainerStyle={{ paddingBottom: 100 }}
@@ -90,8 +99,72 @@ export default function ClientsListScreen() {
 
       {/* FAB */}
       <FloatingActionButton
-        onPress={() => router.push("/(tabs)/clients/new")}
+        onPress={() => router.push("/clients/new")}
       />
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
+  header: {
+    paddingHorizontal: spacing["2xl"],
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  headerTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 16,
+  },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  centeredPadded: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing["2xl"],
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    textAlign: "center",
+  },
+  clientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing["2xl"],
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  clientRowPressed: {
+    backgroundColor: colors.bg,
+  },
+  clientRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  clientName: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  clientPhone: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  chevron: {
+    color: colors.textSecondary,
+    fontSize: 17,
+  },
+});

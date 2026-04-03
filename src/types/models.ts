@@ -2,6 +2,7 @@ export type ProcedureType = "brows" | "lips" | "eyes" | "other";
 export type AppointmentStatus = "scheduled" | "completed" | "cancelled";
 export type FollowUpStatus = "pending" | "completed" | "overdue";
 export type PhotoType = "before" | "after";
+export type FitzpatrickType = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface Client {
   id: string;
@@ -9,16 +10,32 @@ export interface Client {
   lastName: string;
   phone: string;
   email?: string;
+  age?: number;
+  address?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  emergencyRelation?: string;
+  referralSource?: string;
+  fitzpatrickType?: FitzpatrickType;
+  // Clinical conditions (JSON stringified array of keys)
+  medicalConditions?: string;
+  // Clinical yes/no questions (JSON stringified object)
+  clinicalAnswers?: string;
+  // Free text fields
+  allergiesDetail?: string;
+  medicationsDetail?: string;
   notes?: string;
-  allergies?: string;
-  conditions?: string;
-  diabetes: boolean;
-  pregnancy: boolean;
-  hypertension: boolean;
   avatarUri?: string;
   createdAt: string;
   updatedAt: string;
   syncedAt?: string;
+
+  // Legacy fields (kept for backward compat)
+  allergies?: string;
+  conditions?: string;
+  diabetes?: boolean;
+  pregnancy?: boolean;
+  hypertension?: boolean;
 }
 
 export interface Procedure {
@@ -26,10 +43,16 @@ export interface Procedure {
   clientId: string;
   type: ProcedureType;
   technique: string;
+  // Zone details (JSON stringified - e.g. {"ojos": ["parpado_superior"]})
+  zoneDetails?: string;
   cost: number;
+  guarantee?: boolean;
+  guaranteeDays?: number;
   notes?: string;
   date: string;
   followUpDate?: string;
+  beforePhotoId?: string;
+  afterPhotoId?: string;
   createdAt: string;
   updatedAt: string;
   syncedAt?: string;
@@ -37,7 +60,7 @@ export interface Procedure {
 
 export interface Photo {
   id: string;
-  procedureId: string;
+  procedureId?: string;
   clientId: string;
   type: PhotoType;
   localUri: string;
