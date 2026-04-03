@@ -39,7 +39,7 @@ const STEP_TITLES: Record<Step, string> = {
   1: "Datos personales",
   2: "Fototipo Fitzpatrick",
   3: "Servicio a realizar",
-  4: "Historia clinica",
+  4: "Historia clínica",
   5: "Foto antes",
   6: "Confirmar",
 };
@@ -118,7 +118,7 @@ export default function NewClientScreen() {
   const [medicationsDetail, setMedicationsDetail] = useState("");
 
   // ── Step 4: Foto ──
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
 
   // ── Validation ──
   const firstNameError =
@@ -202,14 +202,14 @@ export default function NewClientScreen() {
   };
 
   // ── Photo actions ──
-  const handleTakePhoto = async () => {
-    const uri = await takePhoto();
-    if (uri) setPhotoUri(uri);
+  const addBeforePhoto = async (mode: "camera" | "gallery") => {
+    if (beforePhotos.length >= 3) return;
+    const uri = mode === "camera" ? await takePhoto() : await pickPhoto();
+    if (uri) setBeforePhotos((prev) => [...prev, uri]);
   };
 
-  const handlePickPhoto = async () => {
-    const uri = await pickPhoto();
-    if (uri) setPhotoUri(uri);
+  const removeBeforePhoto = (index: number) => {
+    setBeforePhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   // ── Save ──
@@ -236,8 +236,10 @@ export default function NewClientScreen() {
         medicationsDetail: medicationsDetail.trim() || undefined,
       });
 
-      if (result && photoUri) {
-        await savePhoto(photoUri, result.id, "", "before");
+      if (result && beforePhotos.length > 0) {
+        for (const uri of beforePhotos) {
+          await savePhoto(uri, result.id, "", "before");
+        }
       }
 
       if (result) {
@@ -320,14 +322,14 @@ export default function NewClientScreen() {
               maxLength={3}
             />
             <PhoneInput
-              label="Telefono *"
+              label="Teléfono *"
               value={phone}
               onChangeText={(raw) => setPhone(raw)}
               error={phoneError}
             />
             <Input
-              label="Direccion"
-              placeholder="Direccion"
+              label="Dirección"
+              placeholder="Dirección"
               value={address}
               onChangeText={setAddress}
               variant="light"
@@ -344,7 +346,7 @@ export default function NewClientScreen() {
               maxLength={60}
             />
             <PhoneInput
-              label="Telefono emergencia"
+              label="Teléfono emergencia"
               value={emergencyPhone}
               onChangeText={(raw) => setEmergencyPhone(raw)}
             />
@@ -455,7 +457,7 @@ export default function NewClientScreen() {
                 </Text>
                 <View style={styles.fitzDivider} />
                 <Text style={styles.fitzDetailReactionLabel}>
-                  Reaccion al sol
+                  Reacción al sol
                 </Text>
                 <Text style={styles.fitzDetailReaction}>
                   {selectedFitz.reaction}
@@ -565,7 +567,7 @@ export default function NewClientScreen() {
                               {/* Per-item laser prices */}
                               {zone.pricingMode === "laser" && opt.price && (
                                 <Text style={styles.optionPriceHint}>
-                                  Sesion ${opt.price?.toLocaleString()} · Paquete 10 ${opt.packagePrice?.toLocaleString()}
+                                  Sesión ${opt.price?.toLocaleString()} · Paquete 10 ${opt.packagePrice?.toLocaleString()}
                                 </Text>
                               )}
                             </View>
@@ -577,7 +579,7 @@ export default function NewClientScreen() {
                       {zone.pricingMode === "laser" && selected.size > 0 && (
                         <View style={styles.laserToggleRow}>
                           <Text style={styles.toggleLabel}>
-                            Paquete 10 sesiones?
+                            ¿Paquete 10 sesiones?
                           </Text>
                           <Switch
                             value={isLaserPkg}
@@ -719,7 +721,7 @@ export default function NewClientScreen() {
                       )}
                       <Text style={styles.grandTotalTotalPrice}>
                         ${grandTotal.toLocaleString()} MXN
-                        {hasVariable ? " + cotizacion" : ""}
+                        {hasVariable ? " + cotización" : ""}
                       </Text>
                     </View>
                   </View>
@@ -759,8 +761,8 @@ export default function NewClientScreen() {
         {/* ════════ STEP 4: Historia clinica ════════ */}
         {step === 4 && (
           <View style={styles.formGroup}>
-            {/* Section 1: Condiciones medicas */}
-            <SectionHeader title="Condiciones medicas" />
+            {/* Section 1: Condiciones médicas */}
+            <SectionHeader title="Condiciones médicas" />
             <View style={styles.chipGrid}>
               {MEDICAL_CONDITIONS.map((condition) => {
                 const isSelected = selectedConditions.has(condition.key);
@@ -788,8 +790,8 @@ export default function NewClientScreen() {
               })}
             </View>
 
-            {/* Section 2: Preguntas clinicas */}
-            <SectionHeader title="Preguntas clinicas" />
+            {/* Section 2: Preguntas clínicas */}
+            <SectionHeader title="Preguntas clínicas" />
             <View style={styles.questionsContainer}>
               {CLINICAL_QUESTIONS.map((question) => (
                 <View key={question.key} style={styles.toggleRow}>
@@ -811,16 +813,18 @@ export default function NewClientScreen() {
 
             {/* Section 3: Free text fields */}
             <SectionHeader title="Detalles adicionales" />
-            <Input
-              label="Alergias (detalle)"
-              placeholder="Describir alergias si aplica"
-              value={allergiesDetail}
-              onChangeText={setAllergiesDetail}
-              variant="light"
-              multiline
-              numberOfLines={3}
-              maxLength={500}
-            />
+            {selectedConditions.has("alergias") && (
+              <Input
+                label="Alergias (detalle)"
+                placeholder="Describir alergias"
+                value={allergiesDetail}
+                onChangeText={setAllergiesDetail}
+                variant="light"
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+              />
+            )}
             <Input
               label="Medicamentos actuales"
               placeholder="Describir medicamentos que toma actualmente"
@@ -838,73 +842,73 @@ export default function NewClientScreen() {
         {step === 5 && (
           <View style={styles.formGroup}>
             <Text style={styles.fitzInstructions}>
-              Toma o selecciona una foto antes del procedimiento
+              Toma o selecciona fotos antes del procedimiento (minimo 1, maximo 3)
             </Text>
 
-            <Pressable
-              onPress={handleTakePhoto}
-              style={styles.photoArea}
-            >
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Ionicons
-                    name="camera-outline"
-                    size={48}
-                    color={colors.textLight}
+            {/* Photo action buttons */}
+            {beforePhotos.length < 3 && (
+              <View style={styles.photoButtonsRow}>
+                <View style={styles.photoButtonWrapper}>
+                  <Button
+                    title="Camara"
+                    onPress={() => addBeforePhoto("camera")}
+                    variant="primary"
+                    size="md"
+                    icon={
+                      <Ionicons
+                        name="camera-outline"
+                        size={18}
+                        color={colors.white}
+                      />
+                    }
                   />
-                  <Text style={styles.photoPlaceholderText}>Tomar foto</Text>
                 </View>
-              )}
-            </Pressable>
-
-            <View style={styles.photoButtonsRow}>
-              <View style={styles.photoButtonWrapper}>
-                <Button
-                  title="Camara"
-                  onPress={handleTakePhoto}
-                  variant="primary"
-                  size="md"
-                  icon={
-                    <Ionicons
-                      name="camera-outline"
-                      size={18}
-                      color={colors.white}
-                    />
-                  }
-                />
+                <View style={styles.photoButtonWrapper}>
+                  <Button
+                    title="Galeria"
+                    onPress={() => addBeforePhoto("gallery")}
+                    variant="outline"
+                    size="md"
+                    icon={
+                      <Ionicons
+                        name="images-outline"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    }
+                  />
+                </View>
               </View>
-              <View style={styles.photoButtonWrapper}>
-                <Button
-                  title="Galeria"
-                  onPress={handlePickPhoto}
-                  variant="outline"
-                  size="md"
-                  icon={
-                    <Ionicons
-                      name="images-outline"
-                      size={18}
-                      color={colors.accent}
-                    />
-                  }
-                />
-              </View>
-            </View>
-
-            {photoUri && (
-              <Pressable
-                onPress={() => setPhotoUri(null)}
-                style={styles.removePhotoBtn}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={16}
-                  color={colors.danger}
-                />
-                <Text style={styles.removePhotoText}>Eliminar foto</Text>
-              </Pressable>
             )}
+
+            {/* Photo thumbnails */}
+            {beforePhotos.length > 0 ? (
+              <View style={styles.beforePhotoGrid}>
+                {beforePhotos.map((uri, index) => (
+                  <View key={index} style={styles.beforePhotoThumb}>
+                    <Image source={{ uri }} style={styles.beforePhotoImage} />
+                    <Pressable
+                      onPress={() => removeBeforePhoto(index)}
+                      style={styles.beforePhotoDelete}
+                    >
+                      <Ionicons name="close-circle" size={24} color={colors.danger} />
+                    </Pressable>
+                    <View style={styles.beforePhotoBadge}>
+                      <Text style={styles.beforePhotoBadgeText}>{index + 1}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <Ionicons name="camera-outline" size={48} color={colors.textLight} />
+                <Text style={styles.photoPlaceholderText}>Sin fotos aun</Text>
+              </View>
+            )}
+
+            <Text style={styles.photoCountText}>
+              {beforePhotos.length}/3 fotos
+            </Text>
           </View>
         )}
 
@@ -922,14 +926,14 @@ export default function NewClientScreen() {
               </View>
 
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Telefono</Text>
+                <Text style={styles.summaryLabel}>Teléfono</Text>
                 <Text style={styles.summaryValue}>{phone}</Text>
               </View>
 
               {age.trim() ? (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Edad</Text>
-                  <Text style={styles.summaryValue}>{age} anios</Text>
+                  <Text style={styles.summaryValue}>{age} años</Text>
                 </View>
               ) : null}
 
@@ -942,22 +946,31 @@ export default function NewClientScreen() {
                 </Text>
               </View>
 
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Condiciones marcadas</Text>
-                <Text style={styles.summaryValue}>{conditionsCount}</Text>
-              </View>
+              {conditionsCount > 0 && (
+                <View style={{ gap: 4 }}>
+                  <Text style={styles.summaryLabel}>Condiciones</Text>
+                  {Array.from(selectedConditions).map((key) => {
+                    const cond = MEDICAL_CONDITIONS.find((c) => c.key === key);
+                    return (
+                      <Text key={key} style={[styles.summaryValue, { fontSize: 13 }]}>
+                        • {cond?.label || key}
+                      </Text>
+                    );
+                  })}
+                </View>
+              )}
 
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Foto tomada</Text>
+                <Text style={styles.summaryLabel}>Fotos antes</Text>
                 <Text style={styles.summaryValue}>
-                  {photoUri ? "Si" : "No"}
+                  {beforePhotos.length} foto{beforePhotos.length !== 1 ? "s" : ""}
                 </Text>
               </View>
             </View>
 
             {/* Servicios seleccionados */}
             {(() => {
-              const serviceItems: { zone: string; options: string[]; total: number; original?: number; isVariable: boolean }[] = [];
+              const serviceItems: { zone: string; icon: string; options: string[]; total: number; original?: number; isVariable: boolean }[] = [];
               let grandTotal = 0;
               let grandOriginal = 0;
 
@@ -973,6 +986,7 @@ export default function NewClientScreen() {
                 grandOriginal += p.originalTotal ?? p.total;
                 serviceItems.push({
                   zone: zone.label,
+                  icon: zone.icon,
                   options: optionLabels,
                   total: p.total,
                   original: p.originalTotal && p.originalTotal !== p.total ? p.originalTotal : undefined,
@@ -989,14 +1003,17 @@ export default function NewClientScreen() {
                   {serviceItems.map((item) => (
                     <View key={item.zone} style={{ marginBottom: 10 }}>
                       <View style={styles.summaryRow}>
-                        <Text style={[styles.summaryLabel, { fontWeight: "600" }]}>{item.zone}</Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                          <Ionicons name={item.icon as any} size={16} color={colors.primary} />
+                          <Text style={[styles.summaryLabel, { fontWeight: "600" }]}>{item.zone}</Text>
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
                           {item.original && (
                             <Text style={{ fontSize: 12, color: colors.textSecondary, textDecorationLine: "line-through" }}>
                               ${item.original.toLocaleString()}
                             </Text>
                           )}
-                          <Text style={[styles.summaryValue, { color: colors.primary, fontWeight: "700" }]}>
+                          <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>
                             {item.isVariable ? "Por cotizar" : `$${item.total.toLocaleString()}`}
                           </Text>
                         </View>
@@ -1040,7 +1057,8 @@ export default function NewClientScreen() {
             onPress={handleNext}
             disabled={
               (step === 2 && fitzpatrickType === null) ||
-              (step === 3 && Object.values(zoneSelections).every((s) => s.size === 0))
+              (step === 3 && Object.values(zoneSelections).every((s) => s.size === 0)) ||
+              (step === 5 && beforePhotos.length === 0)
             }
           />
         ) : (
@@ -1277,16 +1295,48 @@ const styles = StyleSheet.create({
   photoButtonWrapper: {
     flex: 1,
   },
-  removePhotoBtn: {
+  beforePhotoGrid: {
     flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+  beforePhotoThumb: {
+    position: "relative",
+    flex: 1,
+  },
+  beforePhotoImage: {
+    width: "100%",
+    height: 140,
+    borderRadius: radius.md,
+  },
+  beforePhotoDelete: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+  },
+  beforePhotoBadge: {
+    position: "absolute",
+    bottom: 6,
+    left: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: spacing.sm,
   },
-  removePhotoText: {
-    color: colors.danger,
-    fontSize: 13,
+  beforePhotoBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  photoCountText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginTop: 8,
   },
 
   // ── Summary ──

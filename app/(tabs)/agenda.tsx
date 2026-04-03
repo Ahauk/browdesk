@@ -88,7 +88,7 @@ export default function AgendaScreen() {
 
         {/* Upcoming */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Proximas citas</Text>
+          <Text style={styles.sectionTitle}>Próximas citas</Text>
           <Card variant="light" style={{ backgroundColor: colors.surfaceSoft }}>
             {upcomingAppointments.length > 0 ? (
               upcomingAppointments.slice(0, 5).map((apt) => (
@@ -110,7 +110,7 @@ export default function AgendaScreen() {
                 </Pressable>
               ))
             ) : (
-              <Text style={styles.emptyText}>Sin citas proximas</Text>
+              <Text style={styles.emptyText}>Sin citas próximas</Text>
             )}
           </Card>
         </View>

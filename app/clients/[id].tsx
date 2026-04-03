@@ -181,13 +181,13 @@ export default function ClientDetailScreen() {
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Hipertension</Text>
+                  <Text style={styles.summaryLabel}>Hipertensión</Text>
                   <Text style={styles.summaryValue}>
                     {client.hypertension ? "Si" : "No"}
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Ultima visita</Text>
+                  <Text style={styles.summaryLabel}>Última visita</Text>
                   <Text style={styles.summaryValue}>
                     {lastProcedure
                       ? formatDate(lastProcedure.date)

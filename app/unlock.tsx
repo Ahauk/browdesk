@@ -136,7 +136,7 @@ export default function UnlockScreen() {
           if (valid) {
             await unlock();
           } else {
-            setError("Codigo incorrecto");
+            setError("Código incorrecto");
             setPin("");
           }
         }
@@ -158,7 +158,7 @@ export default function UnlockScreen() {
               await savePin(pin);
               await unlock();
             } else {
-              setError("Los codigos no coinciden");
+              setError("Los códigos no coinciden");
               setPin("");
               setConfirmPin("");
               setSetupStep(1);
@@ -190,9 +190,9 @@ export default function UnlockScreen() {
   const title =
     screen === "setup-pin"
       ? setupStep === 1
-        ? "Crea tu codigo de acceso"
-        : "Confirma tu codigo"
-      : "Ingresa tu codigo";
+        ? "Crea tu código de acceso"
+        : "Confirma tu código"
+      : "Ingresa tu código";
 
   return (
     <View style={styles.container}>
@@ -224,7 +224,7 @@ export default function UnlockScreen() {
 
         {screen === "setup-pin" && setupStep === 1 && (
           <Text style={styles.hintText}>
-            Este codigo protege tus datos si Face ID no esta disponible
+            Este código protege tus datos si Face ID no está disponible
           </Text>
         )}
 

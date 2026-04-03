@@ -13,7 +13,7 @@ export async function isBiometricAvailable(): Promise<boolean> {
 export async function authenticateWithBiometric(): Promise<boolean> {
   const result = await LocalAuthentication.authenticateAsync({
     promptMessage: "Desbloquear BrowDesk",
-    cancelLabel: "Usar codigo",
+    cancelLabel: "Usar código",
     disableDeviceFallback: true,
   });
   return result.success;

@@ -71,38 +71,39 @@ function RecentItem({
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { count: clientCount } = useClients();
-  const { todayCount } = useAppointments();
-  const { pendingCount } = useFollowUps();
+  const { count: clientCount, refresh: refreshClients, getClient } = useClients();
+  const { todayCount, refresh: refreshAppointments } = useAppointments();
+  const { pendingCount, refresh: refreshFollowUps } = useFollowUps();
   const { getRecentProcedures } = useProcedures();
   const { sync } = useSync();
-  const { getClient } = useClients();
 
   const [recentProcedures, setRecentProcedures] = useState<
     { procedure: Procedure; clientName: string }[]
   >([]);
 
   const loadRecent = useCallback(async () => {
-    const procedures = await getRecentProcedures(5);
+    const procs = await getRecentProcedures(5);
     const withNames = await Promise.all(
-      procedures.map(async (proc) => {
+      procs.map(async (proc) => {
         const client = await getClient(proc.clientId);
-        return {
-          procedure: proc,
-          clientName: client
-            ? fullName(client.firstName, client.lastName)
-            : "Sin nombre",
-        };
+        return client
+          ? {
+              procedure: proc,
+              clientName: fullName(client.firstName, client.lastName),
+            }
+          : null;
       })
     );
-    setRecentProcedures(withNames);
+    setRecentProcedures(withNames.filter((item) => item !== null));
   }, []);
 
-  // Refresh data when screen comes into focus
+  // Refresh all data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
+      refreshClients();
+      refreshAppointments();
+      refreshFollowUps();
       loadRecent();
-      // Sync in background, don't block UI
       sync().catch(() => {});
     }, [loadRecent])
   );
@@ -149,7 +150,7 @@ export default function HomeScreen() {
 
         {/* Recent visits */}
         <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Ultimas visitas</Text>
+          <Text style={styles.sectionTitle}>Últimas visitas</Text>
           {recentProcedures.length > 0 ? (
             recentProcedures.map((item) => {
               const typeLabel =

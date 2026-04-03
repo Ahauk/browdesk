@@ -83,9 +83,9 @@ export const SERVICE_ZONES: ServiceZone[] = [
       ["punteado_pestanas", "parpado_inferior"],
     ],
     options: [
-      { key: "parpado_superior", label: "Parpado superior" },
-      { key: "parpado_inferior", label: "Parpado inferior" },
-      { key: "punteado_pestanas", label: "Punteado de pestanas" },
+      { key: "parpado_superior", label: "Párpado superior" },
+      { key: "parpado_inferior", label: "Párpado inferior" },
+      { key: "punteado_pestanas", label: "Punteado de pestañas" },
       { key: "difuminado", label: "Difuminado" },
     ],
   },
@@ -120,7 +120,7 @@ export const SERVICE_ZONES: ServiceZone[] = [
   },
   {
     key: "depilacion",
-    label: "Depilacion con laser",
+    label: "Depilación con láser",
     icon: "flash-outline",
     selectionMode: "radio",
     pricingMode: "laser",
@@ -140,9 +140,9 @@ export const SERVICE_ZONES: ServiceZone[] = [
     icon: "ellipsis-horizontal-outline",
     selectionMode: "radio",
     pricingMode: "variable",
-    variableMessage: "El precio varia segun el tamano y numero de sesiones. Se cotiza de forma personalizada.",
+    variableMessage: "El precio varía según el tamaño y número de sesiones. Se cotiza de forma personalizada.",
     options: [
-      { key: "eliminacion_tatuaje", label: "Eliminacion de tatuaje" },
+      { key: "eliminacion_tatuaje", label: "Eliminación de tatuaje" },
       { key: "tatuaje", label: "Tatuaje" },
     ],
   },

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { eq, like, or, desc } from "drizzle-orm";
 import { randomUUID } from "expo-crypto";
 import { db } from "@/db/client";
-import { clients } from "@/db/schema";
+import { clients, procedures, photos, appointments, followUps } from "@/db/schema";
 import type { Client } from "@/types/models";
 
 export function useClients() {
@@ -123,6 +123,11 @@ export function useClients() {
   const deleteClient = useCallback(
     async (id: string): Promise<boolean> => {
       try {
+        // Delete related data first (cascade)
+        await db.delete(followUps).where(eq(followUps.clientId, id));
+        await db.delete(photos).where(eq(photos.clientId, id));
+        await db.delete(procedures).where(eq(procedures.clientId, id));
+        await db.delete(appointments).where(eq(appointments.clientId, id));
         await db.delete(clients).where(eq(clients.id, id));
         await fetchClients();
         return true;

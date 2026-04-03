@@ -116,7 +116,7 @@ export default function ProcedureDetailScreen() {
             <Text style={styles.value}>{typeLabel}</Text>
           </View>
           <View style={styles.cardRow}>
-            <Text style={styles.label}>Tecnica</Text>
+            <Text style={styles.label}>Técnica</Text>
             <Text style={styles.value}>{procedure.technique || "—"}</Text>
           </View>
           <View style={styles.cardRow}>
