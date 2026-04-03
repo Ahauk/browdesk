@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initializeDatabase } from "@/db/client";
 import { useAppStore } from "@/stores/app.store";
 import { colors } from "@/theme";
@@ -31,7 +32,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -81,7 +82,7 @@ export default function RootLayout() {
         />
       </Stack>
       <StatusBar style="auto" />
-    </>
+    </GestureHandlerRootView>
   );
 }
 

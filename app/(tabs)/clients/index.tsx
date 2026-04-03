@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -6,8 +6,12 @@ import {
   Pressable,
   ActivityIndicator,
   StyleSheet,
+  Alert,
+  Animated,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { Swipeable } from "react-native-gesture-handler";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SearchBar, Avatar } from "@/components/ui";
 import { FloatingActionButton } from "@/components/layout/FloatingActionButton";
@@ -19,44 +23,79 @@ import { colors, spacing, radius } from "@/theme";
 function ClientRow({
   client,
   onPress,
+  onDelete,
 }: {
   client: Client;
   onPress: () => void;
+  onDelete: () => void;
 }) {
+  const swipeableRef = useRef<Swipeable>(null);
+
+  const renderRightActions = (
+    _progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>
+  ) => {
+    const scale = dragX.interpolate({
+      inputRange: [-80, 0],
+      outputRange: [1, 0.5],
+      extrapolate: "clamp",
+    });
+    return (
+      <Pressable
+        onPress={() => {
+          swipeableRef.current?.close();
+          onDelete();
+        }}
+        style={styles.deleteAction}
+      >
+        <Animated.View style={[styles.deleteContent, { transform: [{ scale }] }]}>
+          <Ionicons name="trash-outline" size={22} color={colors.white} />
+          <Text style={styles.deleteText}>Eliminar</Text>
+        </Animated.View>
+      </Pressable>
+    );
+  };
+
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.clientRow,
-        pressed && styles.clientRowPressed,
-      ]}
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
     >
-      <View style={styles.clientRowLeft}>
-        <Avatar
-          firstName={client.firstName}
-          lastName={client.lastName}
-          uri={client.avatarUri}
-          size="md"
-        />
-        <View>
-          <Text style={styles.clientName}>
-            {fullName(client.firstName, client.lastName)}
-          </Text>
-          <Text style={styles.clientPhone}>{client.phone}</Text>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.clientRow,
+          pressed && styles.clientRowPressed,
+        ]}
+      >
+        <View style={styles.clientRowLeft}>
+          <Avatar
+            firstName={client.firstName}
+            lastName={client.lastName}
+            uri={client.avatarUri}
+            size="md"
+          />
+          <View>
+            <Text style={styles.clientName}>
+              {fullName(client.firstName, client.lastName)}
+            </Text>
+            <Text style={styles.clientPhone}>{client.phone}</Text>
+          </View>
         </View>
-      </View>
-      <View style={styles.clientRight}>
-        <Text style={styles.clientDate}>{formatDate(client.createdAt)}</Text>
-        <Text style={styles.chevron}>{"›"}</Text>
-      </View>
-    </Pressable>
+        <View style={styles.clientRight}>
+          <Text style={styles.clientDate}>{formatDate(client.createdAt)}</Text>
+          <Text style={styles.chevron}>{"›"}</Text>
+        </View>
+      </Pressable>
+    </Swipeable>
   );
 }
 
 export default function ClientsListScreen() {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const { clients, loading, searchClients, refresh } = useClients();
+  const { clients, loading, searchClients, refresh, deleteClient } = useClients();
 
   // Refresh list when screen comes into focus
   useFocusEffect(
@@ -100,6 +139,22 @@ export default function ClientsListScreen() {
             <ClientRow
               client={item}
               onPress={() => router.push(`/clients/${item.id}`)}
+              onDelete={() => {
+                Alert.alert(
+                  "Eliminar clienta",
+                  `Estas segura que deseas eliminar a ${fullName(item.firstName, item.lastName)}? Se borraran todos sus datos y procedimientos.`,
+                  [
+                    { text: "Cancelar", style: "cancel" },
+                    {
+                      text: "Eliminar",
+                      style: "destructive",
+                      onPress: async () => {
+                        await deleteClient(item.id);
+                      },
+                    },
+                  ]
+                );
+              }}
             />
           )}
           contentContainerStyle={{ paddingBottom: 100 }}
@@ -184,5 +239,21 @@ const styles = StyleSheet.create({
   chevron: {
     color: colors.textSecondary,
     fontSize: 17,
+  },
+  deleteAction: {
+    backgroundColor: colors.danger,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+  },
+  deleteContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  deleteText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: "600",
   },
 });

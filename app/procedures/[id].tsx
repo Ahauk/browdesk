@@ -6,6 +6,7 @@ import {
   Pressable,
   Image,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { procedures, photos } from "@/db/schema";
+import { deletePhoto } from "@/services/photo.service";
 import { formatDate } from "@/utils/format";
 import { PROCEDURE_TYPES } from "@/constants";
 import { PIGMENT_COLORS, NEEDLE_TYPES } from "@/constants/procedure";
@@ -45,6 +47,24 @@ export default function ProcedureDetailScreen() {
     }
     load();
   }, [id]);
+
+  const handleDeletePhoto = (photoId: string) => {
+    Alert.alert(
+      "Eliminar foto",
+      "Estas segura que deseas eliminar esta foto? Esta accion no se puede deshacer.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            await deletePhoto(photoId);
+            setProcPhotos((prev) => prev.filter((p) => p.id !== photoId));
+          },
+        },
+      ]
+    );
+  };
 
   if (loading || !procedure) {
     return (
@@ -183,14 +203,21 @@ export default function ProcedureDetailScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 10 }}
+                  contentContainerStyle={{ gap: 10, paddingTop: 10, paddingRight: 10 }}
                 >
                   {beforePhotos.map((photo) => (
-                    <Image
-                      key={photo.id}
-                      source={{ uri: photo.localUri }}
-                      style={styles.photo}
-                    />
+                    <View key={photo.id} style={styles.photoWrap}>
+                      <Image
+                        source={{ uri: photo.localUri }}
+                        style={styles.photo}
+                      />
+                      <Pressable
+                        onPress={() => handleDeletePhoto(photo.id)}
+                        style={styles.photoDeleteBtn}
+                      >
+                        <Ionicons name="close-circle" size={24} color={colors.danger} />
+                      </Pressable>
+                    </View>
                   ))}
                 </ScrollView>
               </View>
@@ -202,14 +229,21 @@ export default function ProcedureDetailScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 10 }}
+                  contentContainerStyle={{ gap: 10, paddingTop: 10, paddingRight: 10 }}
                 >
                   {afterPhotos.map((photo) => (
-                    <Image
-                      key={photo.id}
-                      source={{ uri: photo.localUri }}
-                      style={styles.photo}
-                    />
+                    <View key={photo.id} style={styles.photoWrap}>
+                      <Image
+                        source={{ uri: photo.localUri }}
+                        style={styles.photo}
+                      />
+                      <Pressable
+                        onPress={() => handleDeletePhoto(photo.id)}
+                        style={styles.photoDeleteBtn}
+                      >
+                        <Ionicons name="close-circle" size={24} color={colors.danger} />
+                      </Pressable>
+                    </View>
                   ))}
                 </ScrollView>
               </View>
@@ -326,10 +360,20 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
+  photoWrap: {
+    position: "relative",
+  },
   photo: {
     width: 160,
     height: 200,
     borderRadius: radius.md,
+  },
+  photoDeleteBtn: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
   },
 
   // Comparison
