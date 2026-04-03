@@ -8,32 +8,40 @@ import {
   Alert,
   Image,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, PhoneInput } from "@/components/ui";
 import {
   MEDICAL_CONDITIONS,
   CLINICAL_QUESTIONS,
   FITZPATRICK_TYPES,
   REFERRAL_SOURCES,
 } from "@/constants";
+import {
+  SERVICE_ZONES,
+  calculateZonePrice,
+  getDisabledOptions,
+} from "@/constants/services";
 import { useClients } from "@/hooks/useClients";
 import { pickPhoto, takePhoto, savePhoto } from "@/services/photo.service";
 import { colors, spacing, radius } from "@/theme";
 import type { FitzpatrickType } from "@/types/models";
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 const STEP_TITLES: Record<Step, string> = {
   1: "Datos personales",
   2: "Fototipo Fitzpatrick",
-  3: "Historia clinica",
-  4: "Foto antes",
-  5: "Confirmar",
+  3: "Servicio a realizar",
+  4: "Historia clinica",
+  5: "Foto antes",
+  6: "Confirmar",
 };
 
 /* ───────────────────── Step Indicator ───────────────────── */
@@ -76,12 +84,24 @@ export default function NewClientScreen() {
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [emergencyRelation, setEmergencyRelation] = useState("");
   const [referralSource, setReferralSource] = useState("");
+  const [referralName, setReferralName] = useState("");
 
   // ── Step 2: Fitzpatrick ──
   const [fitzpatrickType, setFitzpatrickType] =
     useState<FitzpatrickType | null>(null);
 
-  // ── Step 3: Historia clinica ──
+  // ── Step 3: Servicio a realizar ──
+  const [activeZones, setActiveZones] = useState<Set<string>>(new Set());
+  const [zoneSelections, setZoneSelections] = useState<
+    Record<string, Set<string>>
+  >({});
+  const [laserPackage, setLaserPackage] = useState<Record<string, boolean>>({});
+  const guarantee = true;
+  const guaranteeDays = "15";
+  const [hasPriorWork, setHasPriorWork] = useState(false);
+  const [priorWorkDetail, setPriorWorkDetail] = useState("");
+
+  // ── Step 4: Historia clinica ──
   const [selectedConditions, setSelectedConditions] = useState<Set<string>>(
     new Set()
   );
@@ -139,6 +159,43 @@ export default function NewClientScreen() {
     });
   };
 
+  // ── Zone toggles (only show/hide, never delete selections) ──
+  const toggleZone = (zoneKey: string) => {
+    setActiveZones((prev) => {
+      const next = new Set(prev);
+      if (next.has(zoneKey)) {
+        next.delete(zoneKey);
+      } else {
+        next.add(zoneKey);
+      }
+      return next;
+    });
+  };
+
+  const selectZoneOption = (
+    zoneKey: string,
+    optionKey: string,
+    mode: "checkbox" | "radio"
+  ) => {
+    setZoneSelections((prev) => {
+      if (mode === "radio") {
+        const current = prev[zoneKey];
+        if (current?.has(optionKey)) {
+          return { ...prev, [zoneKey]: new Set<string>() };
+        }
+        return { ...prev, [zoneKey]: new Set([optionKey]) };
+      }
+      const current = prev[zoneKey] ?? new Set<string>();
+      const next = new Set(current);
+      if (next.has(optionKey)) {
+        next.delete(optionKey);
+      } else {
+        next.add(optionKey);
+      }
+      return { ...prev, [zoneKey]: next };
+    });
+  };
+
   // ── Clinical answer toggle ──
   const toggleClinicalAnswer = (key: string) => {
     setClinicalAnswers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -184,7 +241,11 @@ export default function NewClientScreen() {
       }
 
       if (result) {
-        router.back();
+        Alert.alert(
+          "Clienta guardada",
+          `${firstName} ${lastName} se registro exitosamente`,
+          [{ text: "OK", onPress: () => router.back() }]
+        );
       } else {
         Alert.alert("Error", "No se pudo guardar la clienta");
       }
@@ -206,6 +267,11 @@ export default function NewClientScreen() {
   /* ═══════════════════════ Render ═══════════════════════ */
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+      >
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={handleBack} hitSlop={12}>
@@ -253,14 +319,10 @@ export default function NewClientScreen() {
               keyboardType="numeric"
               maxLength={3}
             />
-            <Input
+            <PhoneInput
               label="Telefono *"
-              placeholder="+52 664 123 4567"
               value={phone}
-              onChangeText={setPhone}
-              variant="light"
-              keyboardType="phone-pad"
-              maxLength={15}
+              onChangeText={(raw) => setPhone(raw)}
               error={phoneError}
             />
             <Input
@@ -281,14 +343,10 @@ export default function NewClientScreen() {
               variant="light"
               maxLength={60}
             />
-            <Input
+            <PhoneInput
               label="Telefono emergencia"
-              placeholder="+52 664 000 0000"
               value={emergencyPhone}
-              onChangeText={setEmergencyPhone}
-              variant="light"
-              keyboardType="phone-pad"
-              maxLength={15}
+              onChangeText={(raw) => setEmergencyPhone(raw)}
             />
             <Input
               label="Parentesco"
@@ -306,7 +364,15 @@ export default function NewClientScreen() {
                 return (
                   <Pressable
                     key={source.key}
-                    onPress={() => setReferralSource(source.key)}
+                    onPress={() => {
+                      if (isSelected) {
+                        setReferralSource("");
+                        setReferralName("");
+                      } else {
+                        setReferralSource(source.key);
+                        if (source.key !== "recomendacion") setReferralName("");
+                      }
+                    }}
                     style={[
                       styles.chip,
                       isSelected ? styles.chipSelected : styles.chipUnselected,
@@ -326,6 +392,16 @@ export default function NewClientScreen() {
                 );
               })}
             </View>
+            {referralSource === "recomendacion" && (
+              <Input
+                label="Quien te recomendo?"
+                placeholder="Nombre de quien la refirio"
+                value={referralName}
+                onChangeText={setReferralName}
+                variant="light"
+                maxLength={60}
+              />
+            )}
           </View>
         )}
 
@@ -343,7 +419,11 @@ export default function NewClientScreen() {
                   <Pressable
                     key={fitz.type}
                     onPress={() =>
-                      setFitzpatrickType(fitz.type as FitzpatrickType)
+                      setFitzpatrickType(
+                        fitzpatrickType === fitz.type
+                          ? null
+                          : (fitz.type as FitzpatrickType)
+                      )
                     }
                     style={styles.fitzItem}
                   >
@@ -385,8 +465,299 @@ export default function NewClientScreen() {
           </View>
         )}
 
-        {/* ════════ STEP 3: Historia clinica ════════ */}
+        {/* ════════ STEP 3: Servicio a realizar ════════ */}
         {step === 3 && (
+          <View style={styles.formGroup}>
+            <SectionHeader title="Selecciona el servicio" />
+
+            {SERVICE_ZONES.map((zone) => {
+              const isActive = activeZones.has(zone.key);
+              const selected = zoneSelections[zone.key] ?? new Set<string>();
+              const isLaserPkg = laserPackage[zone.key] ?? false;
+              const pricing = calculateZonePrice(zone, selected, isLaserPkg);
+              const disabledOpts = getDisabledOptions(zone, selected);
+
+              return (
+                <View key={zone.key} style={styles.zoneBlock}>
+                  {/* Zone toggle header */}
+                  <Pressable
+                    onPress={() => toggleZone(zone.key)}
+                    style={[
+                      styles.zoneToggle,
+                      isActive && styles.zoneToggleActive,
+                    ]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Ionicons
+                        name={zone.icon as any}
+                        size={20}
+                        color={isActive ? colors.white : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.zoneToggleText,
+                          isActive && styles.zoneToggleTextActive,
+                        ]}
+                      >
+                        {zone.label}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={isActive ? "chevron-up" : "chevron-down"}
+                      size={18}
+                      color={isActive ? colors.white : colors.textSecondary}
+                    />
+                  </Pressable>
+
+                  {/* Expanded options */}
+                  {isActive && (
+                    <View style={styles.zoneOptionsGrid}>
+                      {zone.options.map((opt) => {
+                        const optSelected = selected.has(opt.key);
+                        const isDisabled = disabledOpts.has(opt.key);
+                        const isRadio = zone.selectionMode === "radio";
+                        const iconName = isRadio
+                          ? optSelected
+                            ? "radio-button-on"
+                            : "radio-button-off"
+                          : optSelected
+                            ? "checkbox"
+                            : "square-outline";
+
+                        return (
+                          <Pressable
+                            key={opt.key}
+                            onPress={() => {
+                              if (isDisabled) return;
+                              selectZoneOption(
+                                zone.key,
+                                opt.key,
+                                zone.selectionMode
+                              );
+                            }}
+                            style={[
+                              styles.zoneOption,
+                              isDisabled && { opacity: 0.35 },
+                            ]}
+                          >
+                            <Ionicons
+                              name={iconName}
+                              size={22}
+                              color={
+                                isDisabled
+                                  ? colors.divider
+                                  : optSelected
+                                    ? colors.primary
+                                    : colors.textSecondary
+                              }
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  styles.zoneOptionText,
+                                  optSelected &&
+                                    styles.zoneOptionTextSelected,
+                                  isDisabled && { color: colors.divider },
+                                ]}
+                              >
+                                {opt.label}
+                              </Text>
+                              {/* Per-item laser prices */}
+                              {zone.pricingMode === "laser" && opt.price && (
+                                <Text style={styles.optionPriceHint}>
+                                  Sesion ${opt.price?.toLocaleString()} · Paquete 10 ${opt.packagePrice?.toLocaleString()}
+                                </Text>
+                              )}
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+
+                      {/* Laser: package toggle */}
+                      {zone.pricingMode === "laser" && selected.size > 0 && (
+                        <View style={styles.laserToggleRow}>
+                          <Text style={styles.toggleLabel}>
+                            Paquete 10 sesiones?
+                          </Text>
+                          <Switch
+                            value={isLaserPkg}
+                            onValueChange={(v) =>
+                              setLaserPackage((p) => ({
+                                ...p,
+                                [zone.key]: v,
+                              }))
+                            }
+                            trackColor={{
+                              false: colors.divider,
+                              true: colors.accent,
+                            }}
+                            thumbColor={colors.white}
+                          />
+                        </View>
+                      )}
+
+                      {/* Variable price message */}
+                      {zone.pricingMode === "variable" && selected.size > 0 && (
+                        <View style={styles.variablePriceBox}>
+                          <Ionicons
+                            name="information-circle-outline"
+                            size={18}
+                            color={colors.accent}
+                          />
+                          <Text style={styles.variablePriceText}>
+                            {zone.variableMessage}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Price display */}
+                      {!pricing.isVariable && selected.size > 0 && (
+                        <View style={styles.priceBox}>
+                          {pricing.originalTotal &&
+                          pricing.originalTotal !== pricing.total ? (
+                            <View>
+                              <View style={styles.priceRow}>
+                                <Text style={styles.priceOriginal}>
+                                  ${pricing.originalTotal.toLocaleString()}
+                                </Text>
+                                <Text style={styles.priceTotal}>
+                                  ${pricing.total.toLocaleString()} MXN
+                                </Text>
+                              </View>
+                              <View style={styles.discountBadge}>
+                                <Ionicons
+                                  name="pricetag-outline"
+                                  size={14}
+                                  color={colors.success}
+                                />
+                                <Text style={styles.discountText}>
+                                  Ahorras ${pricing.discount?.toLocaleString()} MXN
+                                </Text>
+                              </View>
+                            </View>
+                          ) : (
+                            <Text style={styles.priceTotal}>
+                              ${pricing.total.toLocaleString()} MXN
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+            {/* ── Total general ── */}
+            {(() => {
+              let grandTotal = 0;
+              let grandOriginal = 0;
+              let hasVariable = false;
+              const items: { label: string; amount: number; original?: number }[] = [];
+
+              SERVICE_ZONES.forEach((zone) => {
+                const sel = zoneSelections[zone.key];
+                if (!sel || sel.size === 0) return;
+                const isLaserPkg = laserPackage[zone.key] ?? false;
+                const p = calculateZonePrice(zone, sel, isLaserPkg);
+                if (p.isVariable) {
+                  hasVariable = true;
+                  items.push({ label: zone.label, amount: 0 });
+                } else if (p.total > 0) {
+                  grandTotal += p.total;
+                  grandOriginal += p.originalTotal ?? p.total;
+                  items.push({
+                    label: zone.label,
+                    amount: p.total,
+                    original: p.originalTotal && p.originalTotal !== p.total ? p.originalTotal : undefined,
+                  });
+                }
+              });
+
+              if (items.length < 2) return null;
+
+              const totalDiscount = grandOriginal - grandTotal;
+
+              return (
+                <View style={styles.grandTotalBox}>
+                  <Text style={styles.grandTotalTitle}>Resumen de costos</Text>
+                  {items.map((item) => (
+                    <View key={item.label} style={styles.grandTotalRow}>
+                      <Text style={styles.grandTotalLabel}>{item.label}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        {item.original && (
+                          <Text style={styles.grandTotalStrikePrice}>
+                            ${item.original.toLocaleString()}
+                          </Text>
+                        )}
+                        <Text style={styles.grandTotalItemPrice}>
+                          {item.amount > 0
+                            ? `$${item.amount.toLocaleString()}`
+                            : "Por cotizar"}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  {totalDiscount > 0 && (
+                    <View style={styles.grandTotalSavings}>
+                      <Ionicons name="pricetag-outline" size={14} color={colors.success} />
+                      <Text style={styles.grandTotalSavingsText}>
+                        Descuento aplicado: -${totalDiscount.toLocaleString()} MXN
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.grandTotalDivider} />
+                  <View style={styles.grandTotalRow}>
+                    <Text style={styles.grandTotalTotalLabel}>Total</Text>
+                    <View style={{ alignItems: "flex-end" }}>
+                      {totalDiscount > 0 && (
+                        <Text style={styles.grandTotalStrikePrice}>
+                          ${grandOriginal.toLocaleString()}
+                        </Text>
+                      )}
+                      <Text style={styles.grandTotalTotalPrice}>
+                        ${grandTotal.toLocaleString()} MXN
+                        {hasVariable ? " + cotizacion" : ""}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {/* Trabajo previo */}
+            <SectionHeader title="Trabajo previo" />
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>
+                Trae un trabajo previo en la zona?
+              </Text>
+              <Switch
+                value={hasPriorWork}
+                onValueChange={setHasPriorWork}
+                trackColor={{ false: colors.divider, true: colors.accent }}
+                thumbColor={colors.white}
+              />
+            </View>
+            {hasPriorWork && (
+              <Input
+                label="Detalle del trabajo previo"
+                placeholder="Especificar donde y que tipo de trabajo"
+                value={priorWorkDetail}
+                onChangeText={setPriorWorkDetail}
+                variant="light"
+                multiline
+                numberOfLines={3}
+                maxLength={300}
+              />
+            )}
+
+          </View>
+        )}
+
+        {/* ════════ STEP 4: Historia clinica ════════ */}
+        {step === 4 && (
           <View style={styles.formGroup}>
             {/* Section 1: Condiciones medicas */}
             <SectionHeader title="Condiciones medicas" />
@@ -463,8 +834,8 @@ export default function NewClientScreen() {
           </View>
         )}
 
-        {/* ════════ STEP 4: Foto antes del procedimiento ════════ */}
-        {step === 4 && (
+        {/* ════════ STEP 5: Foto antes del procedimiento ════════ */}
+        {step === 5 && (
           <View style={styles.formGroup}>
             <Text style={styles.fitzInstructions}>
               Toma o selecciona una foto antes del procedimiento
@@ -537,8 +908,8 @@ export default function NewClientScreen() {
           </View>
         )}
 
-        {/* ════════ STEP 5: Confirmar ════════ */}
-        {step === 5 && (
+        {/* ════════ STEP 6: Confirmar ════════ */}
+        {step === 6 && (
           <View style={styles.formGroup}>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Resumen</Text>
@@ -583,6 +954,80 @@ export default function NewClientScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Servicios seleccionados */}
+            {(() => {
+              const serviceItems: { zone: string; options: string[]; total: number; original?: number; isVariable: boolean }[] = [];
+              let grandTotal = 0;
+              let grandOriginal = 0;
+
+              SERVICE_ZONES.forEach((zone) => {
+                const sel = zoneSelections[zone.key];
+                if (!sel || sel.size === 0) return;
+                const isLaserPkg = laserPackage[zone.key] ?? false;
+                const p = calculateZonePrice(zone, sel, isLaserPkg);
+                const optionLabels = zone.options
+                  .filter((o) => sel.has(o.key))
+                  .map((o) => o.label);
+                grandTotal += p.total;
+                grandOriginal += p.originalTotal ?? p.total;
+                serviceItems.push({
+                  zone: zone.label,
+                  options: optionLabels,
+                  total: p.total,
+                  original: p.originalTotal && p.originalTotal !== p.total ? p.originalTotal : undefined,
+                  isVariable: p.isVariable,
+                });
+              });
+
+              if (serviceItems.length === 0) return null;
+              const totalDiscount = grandOriginal - grandTotal;
+
+              return (
+                <View style={[styles.summaryCard, { marginTop: 12 }]}>
+                  <Text style={styles.summaryTitle}>Servicios</Text>
+                  {serviceItems.map((item) => (
+                    <View key={item.zone} style={{ marginBottom: 10 }}>
+                      <View style={styles.summaryRow}>
+                        <Text style={[styles.summaryLabel, { fontWeight: "600" }]}>{item.zone}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          {item.original && (
+                            <Text style={{ fontSize: 12, color: colors.textSecondary, textDecorationLine: "line-through" }}>
+                              ${item.original.toLocaleString()}
+                            </Text>
+                          )}
+                          <Text style={[styles.summaryValue, { color: colors.primary, fontWeight: "700" }]}>
+                            {item.isVariable ? "Por cotizar" : `$${item.total.toLocaleString()}`}
+                          </Text>
+                        </View>
+                      </View>
+                      {item.options.map((opt) => (
+                        <Text key={opt} style={{ fontSize: 12, color: colors.textSecondary, marginLeft: 8, marginTop: 2 }}>
+                          • {opt}
+                        </Text>
+                      ))}
+                    </View>
+                  ))}
+
+                  <View style={styles.grandTotalDivider} />
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontWeight: "bold", fontSize: 15 }]}>Total</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.primary }}>
+                      ${grandTotal.toLocaleString()} MXN
+                    </Text>
+                  </View>
+                  {totalDiscount > 0 && (
+                    <View style={styles.grandTotalSavings}>
+                      <Ionicons name="pricetag-outline" size={14} color={colors.success} />
+                      <Text style={styles.grandTotalSavingsText}>
+                        Ahorro total: ${totalDiscount.toLocaleString()} MXN
+                      </Text>
+                    </View>
+                  )}
+
+                </View>
+              );
+            })()}
           </View>
         )}
       </ScrollView>
@@ -590,7 +1035,14 @@ export default function NewClientScreen() {
       {/* Bottom button */}
       <View style={styles.bottomButton}>
         {step < TOTAL_STEPS ? (
-          <Button title="Siguiente" onPress={handleNext} />
+          <Button
+            title="Siguiente"
+            onPress={handleNext}
+            disabled={
+              (step === 2 && fitzpatrickType === null) ||
+              (step === 3 && Object.values(zoneSelections).every((s) => s.size === 0))
+            }
+          />
         ) : (
           <Button
             title="Guardar clienta"
@@ -599,6 +1051,7 @@ export default function NewClientScreen() {
           />
         )}
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -870,6 +1323,210 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flex: 1,
     textAlign: "right",
+  },
+
+  // ── Zones ──
+  zoneBlock: {
+    marginBottom: 12,
+  },
+  zoneToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+  },
+  zoneToggleActive: {
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  zoneToggleText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  zoneToggleTextActive: {
+    color: colors.white,
+  },
+  zoneOptionsGrid: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.divider,
+    borderBottomLeftRadius: radius.md,
+    borderBottomRightRadius: radius.md,
+    padding: spacing.md,
+    gap: 8,
+  },
+  zoneOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  zoneOptionSelected: {},
+  zoneOptionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  zoneOptionTextSelected: {
+    color: colors.text,
+    fontWeight: "500",
+  },
+
+  // ── Grand Total ──
+  grandTotalBox: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  grandTotalTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.primary,
+    marginBottom: 12,
+  },
+  grandTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  grandTotalLabel: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  grandTotalItemPrice: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  grandTotalDivider: {
+    height: 1,
+    backgroundColor: colors.divider,
+    marginVertical: 10,
+  },
+  grandTotalTotalLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: colors.text,
+  },
+  grandTotalTotalPrice: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: colors.primary,
+  },
+  grandTotalStrikePrice: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textDecorationLine: "line-through",
+  },
+  grandTotalSavings: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    alignSelf: "flex-start",
+  },
+  grandTotalSavingsText: {
+    fontSize: 13,
+    color: colors.success,
+    fontWeight: "600",
+  },
+  guaranteeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#E8F5E9",
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: "#A5D6A7",
+  },
+  guaranteeText: {
+    fontSize: 13,
+    color: "#2E7D32",
+    fontWeight: "500",
+    flex: 1,
+  },
+
+  // ── Pricing ──
+  optionPriceHint: {
+    fontSize: 11,
+    color: colors.textLight,
+    marginTop: 2,
+  },
+  priceBox: {
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    marginTop: 8,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  priceOriginal: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textDecorationLine: "line-through",
+  },
+  priceTotal: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: colors.primary,
+  },
+  discountBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    alignSelf: "flex-start",
+  },
+  discountText: {
+    fontSize: 12,
+    color: colors.success,
+    fontWeight: "600",
+  },
+  variablePriceBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.accentLight + "40",
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    marginTop: 8,
+  },
+  variablePriceText: {
+    fontSize: 13,
+    color: colors.text,
+    flex: 1,
+  },
+  laserToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
   },
 
   // ── Bottom ──

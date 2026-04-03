@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SearchBar, Avatar } from "@/components/ui";
 import { FloatingActionButton } from "@/components/layout/FloatingActionButton";
@@ -53,7 +53,14 @@ function ClientRow({
 export default function ClientsListScreen() {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const { clients, loading, searchClients } = useClients();
+  const { clients, loading, searchClients, refresh } = useClients();
+
+  // Refresh list when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   useEffect(() => {
     const timeout = setTimeout(() => {

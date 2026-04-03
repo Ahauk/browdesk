@@ -5,3 +5,4 @@ export { Avatar } from "./Avatar";
 export { Badge } from "./Badge";
 export { SearchBar } from "./SearchBar";
 export { BrandLogo } from "./BrandLogo";
+export { PhoneInput } from "./PhoneInput";

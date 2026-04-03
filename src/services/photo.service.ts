@@ -6,7 +6,7 @@ import {
   copyAsync,
   deleteAsync,
 } from "expo-file-system/legacy";
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "expo-crypto";
 import { db } from "@/db/client";
 import { photos } from "@/db/schema";
 import type { Photo, PhotoType } from "@/types/models";
@@ -58,7 +58,7 @@ export async function savePhoto(
   try {
     await ensurePhotosDir();
 
-    const photoId = uuid();
+    const photoId = randomUUID();
     const extension = sourceUri.split(".").pop() || "jpg";
     const localUri = `${PHOTOS_DIR}${photoId}.${extension}`;
 

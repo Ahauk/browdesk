@@ -1,4 +1,6 @@
 import { Tabs } from "expo-router";
+import { View, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { colors } from "@/theme";
 
@@ -100,8 +102,31 @@ function TabIcon({
     ),
   };
 
-  return icons[name];
+  const icon = icons[name];
+
+  if (focused) {
+    return (
+      <LinearGradient
+        colors={[colors.accentLight, "transparent"]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={tabStyles.activeWrap}
+      >
+        {icon}
+      </LinearGradient>
+    );
+  }
+
+  return icon;
 }
+
+const tabStyles = StyleSheet.create({
+  activeWrap: {
+    borderRadius: 16,
+    padding: 8,
+    marginBottom: -4,
+  },
+});
 
 export default function TabLayout() {
   return (

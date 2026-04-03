@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { eq, like, or, desc } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "expo-crypto";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import type { Client } from "@/types/models";
@@ -72,7 +72,7 @@ export function useClients() {
       try {
         const now = new Date().toISOString();
         const newClient = {
-          id: uuid(),
+          id: randomUUID(),
           firstName: input.firstName,
           lastName: input.lastName,
           phone: input.phone,

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo:*)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const idx = require\\('expo-file-system'\\); console.log\\(Object.keys\\(idx\\)\\)\")"
+    ]
+  }
+}

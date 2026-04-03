@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { eq, desc } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "expo-crypto";
 import { db } from "@/db/client";
 import { procedures } from "@/db/schema";
 import type { Procedure } from "@/types/models";
@@ -38,7 +38,7 @@ export function useProcedures(clientId?: string) {
         const now = new Date().toISOString();
         const newProcedure: Procedure = {
           ...input,
-          id: uuid(),
+          id: randomUUID(),
           createdAt: now,
           updatedAt: now,
         };

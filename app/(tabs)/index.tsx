@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Card, Avatar } from "@/components/ui";
+import { SparkleText } from "@/components/ui/SparkleText";
 import { useClients } from "@/hooks/useClients";
 import { useAppointments } from "@/hooks/useAppointments";
 import { useFollowUps } from "@/hooks/useFollowUps";
@@ -25,31 +26,31 @@ function StatCard({
   onPress?: () => void;
 }) {
   return (
-    <Card variant="light" style={{ backgroundColor: colors.surfaceSoft }} onPress={onPress}>
-      <View style={styles.statRow}>
-        <View>
-          <Text style={styles.statTitle}>{title}</Text>
-          <Text style={styles.statSubtitle}>{subtitle}</Text>
-        </View>
-        <Text style={styles.statValue}>{value}</Text>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.statCard,
+        pressed && { opacity: 0.9 },
+      ]}
+    >
+      <View>
+        <Text style={styles.statTitle}>{title}</Text>
+        <Text style={styles.statSubtitle}>{subtitle}</Text>
       </View>
-    </Card>
+      <Text style={styles.statValue}>{value}</Text>
+    </Pressable>
   );
 }
 
-function RecentProcedureItem({
+function RecentItem({
   clientName,
-  procedure,
+  detail,
   onPress,
 }: {
   clientName: string;
-  procedure: Procedure;
+  detail: string;
   onPress?: () => void;
 }) {
-  const typeLabel =
-    PROCEDURE_TYPES.find((t) => t.key === procedure.type)?.label ||
-    procedure.type;
-
   return (
     <Pressable onPress={onPress} style={styles.recentItem}>
       <View style={styles.recentItemLeft}>
@@ -60,12 +61,10 @@ function RecentProcedureItem({
         />
         <View>
           <Text style={styles.recentClientName}>{clientName}</Text>
-          <Text style={styles.recentProcType}>
-            {typeLabel} - {procedure.technique}
-          </Text>
+          <Text style={styles.recentDetail}>{detail}</Text>
         </View>
       </View>
-      <Text style={styles.chevron}>{">"}</Text>
+      <Text style={styles.chevron}>{"›"}</Text>
     </Pressable>
   );
 }
@@ -83,42 +82,48 @@ export default function HomeScreen() {
     { procedure: Procedure; clientName: string }[]
   >([]);
 
-  useEffect(() => {
-    async function loadRecent() {
-      const procedures = await getRecentProcedures(5);
-      const withNames = await Promise.all(
-        procedures.map(async (proc) => {
-          const client = await getClient(proc.clientId);
-          return {
-            procedure: proc,
-            clientName: client
-              ? fullName(client.firstName, client.lastName)
-              : "Sin nombre",
-          };
-        })
-      );
-      setRecentProcedures(withNames);
-    }
-    loadRecent();
+  const loadRecent = useCallback(async () => {
+    const procedures = await getRecentProcedures(5);
+    const withNames = await Promise.all(
+      procedures.map(async (proc) => {
+        const client = await getClient(proc.clientId);
+        return {
+          procedure: proc,
+          clientName: client
+            ? fullName(client.firstName, client.lastName)
+            : "Sin nombre",
+        };
+      })
+    );
+    setRecentProcedures(withNames);
   }, []);
 
-  // Background sync on load
-  useEffect(() => {
-    sync();
-  }, []);
+  // Refresh all data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadRecent();
+      sync();
+    }, [loadRecent, sync])
+  );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <View style={styles.screen}>
+      {/* Header with accent bg */}
+      <View style={styles.headerBg}>
+        <SafeAreaView edges={["top"]}>
+          <View style={styles.headerContent}>
+            <SparkleText text="Carolina Vazquez Studio" fontSize={13} />
+            <Text style={styles.greeting}>Hola, Carolina</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+
+      {/* Content */}
       <ScrollView
-        style={styles.flex1}
+        style={styles.content}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Hola, Carolina 👋</Text>
-        </View>
-
         {/* Stats */}
         <View style={styles.statsSection}>
           <StatCard
@@ -130,94 +135,117 @@ export default function HomeScreen() {
           <StatCard
             title="Citas hoy"
             value={todayCount}
-            subtitle="hoy"
+            subtitle="programadas"
             onPress={() => router.push("/(tabs)/agenda")}
           />
           <StatCard
             title="Seguimientos"
             value={pendingCount}
             subtitle="pendientes"
+            onPress={() => router.push("/(tabs)/agenda")}
           />
         </View>
 
-        {/* Recent Procedures */}
+        {/* Recent visits */}
         <View style={styles.recentSection}>
           <Text style={styles.sectionTitle}>Ultimas visitas</Text>
-          <Card variant="light" style={{ backgroundColor: colors.surfaceSoft }}>
-            {recentProcedures.length > 0 ? (
-              recentProcedures.map((item) => (
-                <RecentProcedureItem
+          {recentProcedures.length > 0 ? (
+            recentProcedures.map((item) => {
+              const typeLabel =
+                PROCEDURE_TYPES.find((t) => t.key === item.procedure.type)
+                  ?.label || item.procedure.type;
+              return (
+                <RecentItem
                   key={item.procedure.id}
                   clientName={item.clientName}
-                  procedure={item.procedure}
+                  detail={`${typeLabel} · ${item.procedure.technique}`}
                   onPress={() =>
-                    router.push(
-                      `/(tabs)/clients/${item.procedure.clientId}`
-                    )
+                    router.push(`/clients/${item.procedure.clientId}`)
                   }
                 />
-              ))
-            ) : (
-              <Text style={styles.emptyText}>Sin procedimientos aun</Text>
-            )}
-          </Card>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyText}>Sin visitas recientes</Text>
+          )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: colors.bg,
   },
-  flex1: {
-    flex: 1,
+  // Header — warm accent color
+  headerBg: {
+    backgroundColor: colors.accentLight,
+    paddingBottom: spacing["3xl"],
+    borderBottomLeftRadius: radius["2xl"],
+    borderBottomRightRadius: radius["2xl"],
   },
-  header: {
-    paddingHorizontal: spacing["2xl"],
+  headerContent: {
+    alignItems: "center",
     paddingTop: spacing.lg,
-    paddingBottom: spacing["2xl"],
+    gap: 8,
   },
-  headerTitle: {
+  greeting: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
+  },
+  // Content
+  content: {
+    flex: 1,
+    marginTop: -spacing.md,
   },
   statsSection: {
     paddingHorizontal: spacing["2xl"],
-    gap: 12,
+    gap: 10,
   },
-  statRow: {
+  // Compact stat cards matching mockup
+  statCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: 22,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   statTitle: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "600",
   },
   statSubtitle: {
     color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 12,
+    marginTop: 3,
   },
   statValue: {
-    color: colors.accent,
-    fontSize: 24,
+    color: colors.primary,
+    fontSize: 28,
     fontWeight: "bold",
   },
+  // Recent section
   recentSection: {
     paddingHorizontal: spacing["2xl"],
     marginTop: spacing["2xl"],
   },
   sectionTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "600",
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "500",
     marginBottom: 12,
+    letterSpacing: 0.5,
   },
   recentItem: {
     flexDirection: "row",
@@ -225,7 +253,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.accentLight,
+    borderBottomColor: colors.divider,
   },
   recentItemLeft: {
     flexDirection: "row",
@@ -234,16 +262,16 @@ const styles = StyleSheet.create({
   },
   recentClientName: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "500",
   },
-  recentProcType: {
+  recentDetail: {
     color: colors.textSecondary,
-    fontSize: 11,
+    fontSize: 12,
   },
   chevron: {
     color: colors.textSecondary,
-    fontSize: 17,
+    fontSize: 20,
   },
   emptyText: {
     color: colors.textSecondary,

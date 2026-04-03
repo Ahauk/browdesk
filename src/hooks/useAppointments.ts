@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "expo-crypto";
 import dayjs from "dayjs";
 import { db } from "@/db/client";
 import { appointments } from "@/db/schema";
@@ -54,7 +54,7 @@ export function useAppointments() {
         const now = new Date().toISOString();
         const newAppointment: Appointment = {
           ...input,
-          id: uuid(),
+          id: randomUUID(),
           createdAt: now,
           updatedAt: now,
         };

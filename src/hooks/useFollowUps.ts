@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { eq, desc } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "expo-crypto";
 import { db } from "@/db/client";
 import { followUps } from "@/db/schema";
 import type { FollowUp } from "@/types/models";
@@ -41,7 +41,7 @@ export function useFollowUps(clientId?: string) {
         const now = new Date().toISOString();
         const newFollowUp: FollowUp = {
           ...input,
-          id: uuid(),
+          id: randomUUID(),
           createdAt: now,
           updatedAt: now,
         };
