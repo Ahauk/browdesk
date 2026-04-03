@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   Image,
   StyleSheet,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Avatar, Card } from "@/components/ui";
@@ -55,20 +55,25 @@ export default function ClientDetailScreen() {
   const [loading, setLoading] = useState(true);
 
   const { getClient } = useClients();
-  const { procedures } = useProcedures(id);
+  const { procedures, refresh: refreshProcedures } = useProcedures(id);
   const { followUps } = useFollowUps(id);
 
-  useEffect(() => {
-    async function load() {
-      if (!id) return;
-      const c = await getClient(id);
-      setClient(c);
-      const photos = await getPhotosForClient(id);
-      setClientPhotos(photos);
-      setLoading(false);
-    }
-    load();
+  const loadData = useCallback(async () => {
+    if (!id) return;
+    const c = await getClient(id);
+    setClient(c);
+    const photos = await getPhotosForClient(id);
+    setClientPhotos(photos);
+    setLoading(false);
   }, [id]);
+
+  // Refresh all data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      refreshProcedures();
+    }, [loadData, refreshProcedures])
+  );
 
   const tabs: { key: DetailTab; label: string }[] = [
     { key: "resumen", label: "Resumen" },
@@ -213,16 +218,19 @@ export default function ClientDetailScreen() {
                       <Pressable
                         key={proc.id}
                         style={styles.procItem}
+                        onPress={() =>
+                          router.push(`/procedures/${proc.id}`)
+                        }
                       >
-                        <View>
+                        <View style={{ flex: 1 }}>
                           <Text style={styles.procTitle}>
                             {formatDate(proc.date)} / {typeLabel}
                           </Text>
                           <Text style={styles.procSubtitle}>
-                            {proc.technique} - ${proc.cost}
+                            {proc.technique ? `${proc.technique} · ` : ""}${proc.cost.toLocaleString()} MXN
                           </Text>
                         </View>
-                        <Text style={styles.grayText}>{">"}</Text>
+                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                       </Pressable>
                     );
                   })}

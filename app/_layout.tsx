@@ -69,7 +69,14 @@ export default function RootLayout() {
           options={{
             presentation: "modal",
             animation: "slide_from_bottom",
-            contentStyle: { backgroundColor: colors.brand.ivory },
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
+        <Stack.Screen
+          name="procedures/[id]"
+          options={{
+            animation: "slide_from_right",
+            contentStyle: { backgroundColor: colors.bg },
           }}
         />
       </Stack>
