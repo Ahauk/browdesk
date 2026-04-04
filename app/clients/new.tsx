@@ -27,6 +27,7 @@ import {
   getDisabledOptions,
 } from "@/constants/services";
 import { useClients } from "@/hooks/useClients";
+import { useProcedures } from "@/hooks/useProcedures";
 import { pickPhoto, takePhoto, savePhoto } from "@/services/photo.service";
 import { colors, spacing, radius } from "@/theme";
 import type { FitzpatrickType } from "@/types/models";
@@ -70,6 +71,7 @@ function SectionHeader({ title }: { title: string }) {
 export default function NewClientScreen() {
   const router = useRouter();
   const { createClient } = useClients();
+  const { createProcedure } = useProcedures();
   const [step, setStep] = useState<Step>(1);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -236,21 +238,56 @@ export default function NewClientScreen() {
         medicationsDetail: medicationsDetail.trim() || undefined,
       });
 
-      if (result && beforePhotos.length > 0) {
+      if (!result) {
+        Alert.alert("Error", "No se pudo guardar la clienta");
+        return;
+      }
+
+      // Save before photos linked to client
+      if (beforePhotos.length > 0) {
         for (const uri of beforePhotos) {
           await savePhoto(uri, result.id, "", "before");
         }
       }
 
-      if (result) {
-        Alert.alert(
-          "Clienta guardada",
-          `${firstName} ${lastName} se registro exitosamente`,
-          [{ text: "OK", onPress: () => router.back() }]
-        );
-      } else {
-        Alert.alert("Error", "No se pudo guardar la clienta");
+      // Create one procedure per selected service zone
+      const today = new Date().toISOString().split("T")[0];
+      for (const zone of SERVICE_ZONES) {
+        const sel = zoneSelections[zone.key];
+        if (!sel || sel.size === 0) continue;
+
+        const isLaserPkg = laserPackage[zone.key] ?? false;
+        const pricing = calculateZonePrice(zone, sel, isLaserPkg);
+        const selectedOptions = zone.options
+          .filter((o) => sel.has(o.key))
+          .map((o) => o.label);
+
+        // Map zone key to procedure type
+        const typeMap: Record<string, string> = {
+          ojos: "eyes",
+          cejas: "brows",
+          labios: "lips",
+          depilacion: "other",
+          otros: "other",
+        };
+
+        await createProcedure({
+          clientId: result.id,
+          type: (typeMap[zone.key] || "other") as any,
+          technique: selectedOptions.join(", "),
+          zoneDetails: JSON.stringify({ [zone.key]: Array.from(sel) }),
+          cost: pricing.total,
+          guarantee: true,
+          guaranteeDays: 15,
+          date: today,
+        });
       }
+
+      Alert.alert(
+        "Clienta guardada",
+        `${firstName} ${lastName} se registró exitosamente`,
+        [{ text: "OK", onPress: () => router.back() }]
+      );
     } catch {
       Alert.alert("Error", "Ocurrio un error al guardar");
     } finally {
