@@ -107,7 +107,7 @@ export const SERVICE_ZONES: ServiceZone[] = [
   {
     key: "labios",
     label: "Labios",
-    icon: "heart-outline",
+    icon: "lips",
     selectionMode: "radio",
     pricingMode: "fixed",
     fixedPrice: 2500,

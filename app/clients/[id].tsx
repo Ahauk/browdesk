@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Avatar, Card } from "@/components/ui";
+import { ZoneIcon } from "@/components/ui/ZoneIcon";
 import { useClients } from "@/hooks/useClients";
 import { useProcedures } from "@/hooks/useProcedures";
 import { useFollowUps } from "@/hooks/useFollowUps";
@@ -290,7 +291,7 @@ export default function ClientDetailScreen() {
             const zoneIcon: Record<string, string> = {
               eyes: "eye-outline",
               brows: "brush-outline",
-              lips: "heart-outline",
+              lips: "lips",
               other: "ellipsis-horizontal-outline",
             };
 
@@ -343,8 +344,8 @@ export default function ClientDetailScreen() {
                               <Card variant="light" style={{ backgroundColor: colors.surfaceSoft }}>
                                 <View style={styles.procCardHeader}>
                                   <View style={styles.procCardLeft}>
-                                    <Ionicons
-                                      name={(zoneIcon[proc.type] || "ellipsis-horizontal-outline") as any}
+                                    <ZoneIcon
+                                      icon={zoneIcon[proc.type] || "ellipsis-horizontal-outline"}
                                       size={20}
                                       color={colors.primary}
                                     />

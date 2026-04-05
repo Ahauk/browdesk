@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Input, PhoneInput } from "@/components/ui";
+import { ZoneIcon } from "@/components/ui/ZoneIcon";
 import {
   MEDICAL_CONDITIONS,
   CLINICAL_QUESTIONS,
@@ -527,8 +528,8 @@ export default function NewClientScreen() {
                     ]}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <Ionicons
-                        name={zone.icon as any}
+                      <ZoneIcon
+                        icon={zone.icon}
                         size={20}
                         color={isActive ? colors.white : colors.textSecondary}
                       />
@@ -1041,7 +1042,7 @@ export default function NewClientScreen() {
                     <View key={item.zone} style={{ marginBottom: 10 }}>
                       <View style={styles.summaryRow}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-                          <Ionicons name={item.icon as any} size={16} color={colors.primary} />
+                          <ZoneIcon icon={item.icon} size={16} color={colors.primary} />
                           <Text style={[styles.summaryLabel, { fontWeight: "600" }]}>{item.zone}</Text>
                         </View>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>

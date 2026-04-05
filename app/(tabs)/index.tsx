@@ -51,17 +51,22 @@ function RecentItem({
   detail: string;
   onPress?: () => void;
 }) {
+  const services = detail.split(" • ");
   return (
     <Pressable onPress={onPress} style={styles.recentItem}>
       <View style={styles.recentItemLeft}>
         <Avatar
           firstName={clientName.split(" ")[0]}
           lastName={clientName.split(" ")[1] || ""}
-          size="sm"
+          size="md"
         />
-        <View>
+        <View style={styles.recentTextWrap}>
           <Text style={styles.recentClientName}>{clientName}</Text>
-          <Text style={styles.recentDetail}>{detail}</Text>
+          {services.map((s, i) => (
+            <Text key={i} style={styles.recentService}>
+              {s}
+            </Text>
+          ))}
         </View>
       </View>
       <Text style={styles.chevron}>{"›"}</Text>
@@ -154,19 +159,19 @@ export default function HomeScreen() {
           <StatCard
             title="Clientas"
             value={clientCount}
-            subtitle="registradas"
+            subtitle="Registradas"
             onPress={() => router.push("/(tabs)/clients")}
           />
           <StatCard
             title="Citas hoy"
             value={todayCount}
-            subtitle="programadas"
+            subtitle="Programadas"
             onPress={() => router.push("/(tabs)/agenda")}
           />
           <StatCard
             title="Seguimientos"
             value={pendingCount}
-            subtitle="pendientes"
+            subtitle="Pendientes"
             onPress={() => router.push("/(tabs)/agenda")}
           />
         </View>
@@ -269,23 +274,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
   recentItemLeft: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
+    flex: 1,
+    paddingRight: 8,
+  },
+  recentTextWrap: {
+    flex: 1,
+    gap: 2,
   },
   recentClientName: {
     color: colors.text,
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
   },
-  recentDetail: {
+  recentService: {
     color: colors.textSecondary,
     fontSize: 12,
+    lineHeight: 17,
   },
   chevron: {
     color: colors.textSecondary,
