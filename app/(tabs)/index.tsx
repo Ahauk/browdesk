@@ -77,24 +77,47 @@ export default function HomeScreen() {
   const { getRecentProcedures } = useProcedures();
   const { sync } = useSync();
 
-  const [recentProcedures, setRecentProcedures] = useState<
-    { procedure: Procedure; clientName: string }[]
+  const [recentVisits, setRecentVisits] = useState<
+    {
+      clientId: string;
+      clientName: string;
+      services: string[];
+      date: string;
+    }[]
   >([]);
 
   const loadRecent = useCallback(async () => {
-    const procs = await getRecentProcedures(5);
-    const withNames = await Promise.all(
-      procs.map(async (proc) => {
-        const client = await getClient(proc.clientId);
-        return client
-          ? {
-              procedure: proc,
-              clientName: fullName(client.firstName, client.lastName),
-            }
-          : null;
-      })
-    );
-    setRecentProcedures(withNames.filter((item) => item !== null));
+    const procs = await getRecentProcedures(20);
+    // Group by clientId + date
+    const grouped = new Map<
+      string,
+      { clientId: string; clientName: string; services: string[]; date: string }
+    >();
+
+    for (const proc of procs) {
+      const client = await getClient(proc.clientId);
+      if (!client) continue;
+
+      const key = `${proc.clientId}_${proc.date}`;
+      const typeLabel =
+        PROCEDURE_TYPES.find((t) => t.key === proc.type)?.label || proc.type;
+      const service = proc.technique
+        ? `${typeLabel} · ${proc.technique}`
+        : typeLabel;
+
+      if (grouped.has(key)) {
+        grouped.get(key)!.services.push(service);
+      } else {
+        grouped.set(key, {
+          clientId: proc.clientId,
+          clientName: fullName(client.firstName, client.lastName),
+          services: [service],
+          date: proc.date,
+        });
+      }
+    }
+
+    setRecentVisits(Array.from(grouped.values()).slice(0, 5));
   }, []);
 
   // Refresh all data when screen comes into focus
@@ -151,22 +174,15 @@ export default function HomeScreen() {
         {/* Recent visits */}
         <View style={styles.recentSection}>
           <Text style={styles.sectionTitle}>Últimas visitas</Text>
-          {recentProcedures.length > 0 ? (
-            recentProcedures.map((item) => {
-              const typeLabel =
-                PROCEDURE_TYPES.find((t) => t.key === item.procedure.type)
-                  ?.label || item.procedure.type;
-              return (
-                <RecentItem
-                  key={item.procedure.id}
-                  clientName={item.clientName}
-                  detail={`${typeLabel} · ${item.procedure.technique}`}
-                  onPress={() =>
-                    router.push(`/clients/${item.procedure.clientId}`)
-                  }
-                />
-              );
-            })
+          {recentVisits.length > 0 ? (
+            recentVisits.map((visit) => (
+              <RecentItem
+                key={`${visit.clientId}_${visit.date}`}
+                clientName={visit.clientName}
+                detail={visit.services.join(" • ")}
+                onPress={() => router.push(`/clients/${visit.clientId}`)}
+              />
+            ))
           ) : (
             <Text style={styles.emptyText}>Sin visitas recientes</Text>
           )}

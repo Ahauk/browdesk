@@ -19,13 +19,19 @@ type SyncResult = {
 const LOCAL_ONLY_FIELDS = new Set(["syncedAt", "synced_at"]);
 
 // Convert camelCase JS keys to snake_case for Supabase, removing local-only fields
+// Also convert booleans to integers (Supabase uses INTEGER for booleans)
 function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (LOCAL_ONLY_FIELDS.has(key)) continue;
     const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     if (LOCAL_ONLY_FIELDS.has(snakeKey)) continue;
-    result[snakeKey] = value;
+    // Convert booleans to integers for Supabase
+    if (typeof value === "boolean") {
+      result[snakeKey] = value ? 1 : 0;
+    } else {
+      result[snakeKey] = value;
+    }
   }
   return result;
 }

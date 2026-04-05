@@ -286,63 +286,94 @@ export default function ClientDetailScreen() {
             );
           })()}
 
-          {activeTab === "procedimientos" && (
-            <View style={{ gap: 12 }}>
-              {procedures.length > 0 ? (
-                procedures.map((proc) => {
-                  const typeLabel =
-                    PROCEDURE_TYPES.find((t) => t.key === proc.type)
-                      ?.label || proc.type;
-                  const zoneIcon: Record<string, string> = {
-                    eyes: "eye-outline",
-                    brows: "brush-outline",
-                    lips: "heart-outline",
-                    other: "ellipsis-horizontal-outline",
-                  };
-                  return (
-                    <Pressable
-                      key={proc.id}
-                      onPress={() => router.push(`/procedures/${proc.id}`)}
-                    >
-                      <Card variant="light" style={{ backgroundColor: colors.surfaceSoft }}>
-                        <View style={styles.procCardHeader}>
-                          <View style={styles.procCardLeft}>
-                            <Ionicons
-                              name={(zoneIcon[proc.type] || "ellipsis-horizontal-outline") as any}
-                              size={20}
-                              color={colors.primary}
-                            />
-                            <View>
-                              <Text style={styles.procTitle}>{typeLabel}</Text>
-                              <Text style={styles.procSubtitle}>
-                                {proc.technique || "—"}
-                              </Text>
-                            </View>
-                          </View>
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={styles.procPrice}>
-                              ${proc.cost.toLocaleString()} MXN
-                            </Text>
-                            <Text style={styles.procDate}>
-                              {formatDate(proc.date)}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.procCardFooter}>
-                          <Text style={styles.procDetailLink}>Ver detalle</Text>
-                          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-                        </View>
-                      </Card>
-                    </Pressable>
-                  );
-                })
-              ) : (
+          {activeTab === "procedimientos" && (() => {
+            const zoneIcon: Record<string, string> = {
+              eyes: "eye-outline",
+              brows: "brush-outline",
+              lips: "heart-outline",
+              other: "ellipsis-horizontal-outline",
+            };
+
+            // Group procedures by date
+            const grouped = new Map<string, typeof procedures>();
+            for (const proc of procedures) {
+              const key = proc.date;
+              if (!grouped.has(key)) grouped.set(key, []);
+              grouped.get(key)!.push(proc);
+            }
+
+            if (procedures.length === 0) {
+              return (
                 <Card variant="light" style={{ backgroundColor: colors.surfaceSoft }}>
                   <Text style={styles.emptyText}>Sin procedimientos</Text>
                 </Card>
-              )}
-            </View>
-          )}
+              );
+            }
+
+            return (
+              <View style={{ gap: 20 }}>
+                {Array.from(grouped.entries()).map(([date, procs]) => {
+                  const totalCost = procs.reduce((sum, p) => sum + p.cost, 0);
+                  return (
+                    <View key={date}>
+                      {/* Visit date header */}
+                      <View style={styles.visitHeader}>
+                        <View style={styles.visitHeaderLeft}>
+                          <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                          <Text style={styles.visitDateText}>
+                            Visita — {formatDate(date)}
+                          </Text>
+                        </View>
+                        <Text style={styles.visitTotalText}>
+                          ${totalCost.toLocaleString()} MXN
+                        </Text>
+                      </View>
+
+                      {/* Procedures in this visit */}
+                      <View style={{ gap: 8 }}>
+                        {procs.map((proc) => {
+                          const typeLabel =
+                            PROCEDURE_TYPES.find((t) => t.key === proc.type)
+                              ?.label || proc.type;
+                          return (
+                            <Pressable
+                              key={proc.id}
+                              onPress={() => router.push(`/procedures/${proc.id}`)}
+                            >
+                              <Card variant="light" style={{ backgroundColor: colors.surfaceSoft }}>
+                                <View style={styles.procCardHeader}>
+                                  <View style={styles.procCardLeft}>
+                                    <Ionicons
+                                      name={(zoneIcon[proc.type] || "ellipsis-horizontal-outline") as any}
+                                      size={20}
+                                      color={colors.primary}
+                                    />
+                                    <View>
+                                      <Text style={styles.procTitle}>{typeLabel}</Text>
+                                      <Text style={styles.procSubtitle}>
+                                        {proc.technique || "—"}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  <Text style={styles.procPrice}>
+                                    ${proc.cost.toLocaleString()}
+                                  </Text>
+                                </View>
+                                <View style={styles.procCardFooter}>
+                                  <Text style={styles.procDetailLink}>Ver detalle</Text>
+                                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                                </View>
+                              </Card>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
 
           {activeTab === "fotos" && (() => {
             const beforePhotos = clientPhotos.filter((p) => p.type === "before");
@@ -590,6 +621,30 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     fontWeight: "500",
+  },
+  visitHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  visitHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  visitDateText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  visitTotalText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.primary,
   },
   grayText: {
     color: colors.textSecondary,
