@@ -6,12 +6,13 @@ interface AvatarProps {
   firstName: string;
   lastName: string;
   uri?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "ml" | "lg";
 }
 
 const sizeMap: Record<string, { container: ViewStyle; text: TextStyle }> = {
   sm: { container: { height: 40, width: 40 }, text: { fontSize: 13 } },
   md: { container: { height: 48, width: 48 }, text: { fontSize: 15 } },
+  ml: { container: { height: 60, width: 60 }, text: { fontSize: 19 } },
   lg: { container: { height: 80, width: 80 }, text: { fontSize: 24 } },
 };
 

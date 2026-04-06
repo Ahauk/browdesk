@@ -1,7 +1,15 @@
-import { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  FlatList,
+} from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { Card, Avatar } from "@/components/ui";
 import { SparkleText } from "@/components/ui/SparkleText";
 import { useClients } from "@/hooks/useClients";
@@ -9,20 +17,20 @@ import { useAppointments } from "@/hooks/useAppointments";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { useProcedures } from "@/hooks/useProcedures";
 import { useSync } from "@/hooks/useSync";
-import { fullName } from "@/utils/format";
+import { fullName, formatDate } from "@/utils/format";
 import { PROCEDURE_TYPES } from "@/constants";
 import { colors, spacing, radius } from "@/theme";
-import type { Procedure } from "@/types/models";
 
+/* ───────────────── Stat Card (compact) ───────────────── */
 function StatCard({
   title,
   value,
-  subtitle,
+  icon,
   onPress,
 }: {
   title: string;
   value: string | number;
-  subtitle: string;
+  icon: string;
   onPress?: () => void;
 }) {
   return (
@@ -33,50 +41,88 @@ function StatCard({
         pressed && { opacity: 0.9 },
       ]}
     >
-      <View>
-        <Text style={styles.statTitle}>{title}</Text>
-        <Text style={styles.statSubtitle}>{subtitle}</Text>
-      </View>
+      <Ionicons
+        name={icon as any}
+        size={18}
+        color={colors.accent}
+        style={styles.statIcon}
+      />
       <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statTitle}>{title}</Text>
     </Pressable>
   );
 }
 
-function RecentItem({
+/* ───────────────── Client Avatar Pill ───────────────── */
+function ClientPill({
+  firstName,
+  lastName,
+  avatarUri,
+  onPress,
+}: {
+  firstName: string;
+  lastName: string;
+  avatarUri?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.clientPill}>
+      <Avatar
+        firstName={firstName}
+        lastName={lastName}
+        uri={avatarUri}
+        size="ml"
+      />
+      <Text style={styles.clientPillName} numberOfLines={1}>
+        {firstName}
+      </Text>
+    </Pressable>
+  );
+}
+
+/* ───────────────── Visit Row ───────────────── */
+function VisitRow({
   clientName,
-  detail,
+  services,
+  date,
   onPress,
 }: {
   clientName: string;
-  detail: string;
+  services: string[];
+  date: string;
   onPress?: () => void;
 }) {
-  const services = detail.split(" • ");
   return (
-    <Pressable onPress={onPress} style={styles.recentItem}>
-      <View style={styles.recentItemLeft}>
+    <Pressable onPress={onPress} style={styles.visitRow}>
+      <View style={styles.visitLeft}>
         <Avatar
           firstName={clientName.split(" ")[0]}
           lastName={clientName.split(" ")[1] || ""}
-          size="md"
+          size="sm"
         />
-        <View style={styles.recentTextWrap}>
-          <Text style={styles.recentClientName}>{clientName}</Text>
-          {services.map((s, i) => (
-            <Text key={i} style={styles.recentService}>
-              {s}
-            </Text>
-          ))}
+        <View style={styles.visitTextWrap}>
+          <Text style={styles.visitClientName} numberOfLines={1}>
+            {clientName}
+          </Text>
+          <Text style={styles.visitService} numberOfLines={1}>
+            {services.join(" · ")}
+          </Text>
         </View>
       </View>
-      <Text style={styles.chevron}>{"›"}</Text>
+      <Text style={styles.visitDate}>{formatDate(date)}</Text>
     </Pressable>
   );
 }
 
+/* ═══════════════════════ Home Screen ═══════════════════════ */
 export default function HomeScreen() {
   const router = useRouter();
-  const { count: clientCount, refresh: refreshClients, getClient } = useClients();
+  const {
+    clients,
+    count: clientCount,
+    refresh: refreshClients,
+    getClient,
+  } = useClients();
   const { todayCount, refresh: refreshAppointments } = useAppointments();
   const { pendingCount, refresh: refreshFollowUps } = useFollowUps();
   const { getRecentProcedures } = useProcedures();
@@ -92,8 +138,7 @@ export default function HomeScreen() {
   >([]);
 
   const loadRecent = useCallback(async () => {
-    const procs = await getRecentProcedures(20);
-    // Group by clientId + date
+    const procs = await getRecentProcedures(15);
     const grouped = new Map<
       string,
       { clientId: string; clientName: string; services: string[]; date: string }
@@ -125,7 +170,6 @@ export default function HomeScreen() {
     setRecentVisits(Array.from(grouped.values()).slice(0, 5));
   }, []);
 
-  // Refresh all data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       refreshClients();
@@ -136,9 +180,12 @@ export default function HomeScreen() {
     }, [loadRecent])
   );
 
+  // Recent clients (up to 8)
+  const recentClients = clients.slice(0, 8);
+
   return (
     <View style={styles.screen}>
-      {/* Header with accent bg */}
+      {/* Header */}
       <View style={styles.headerBg}>
         <SafeAreaView edges={["top"]}>
           <View style={styles.headerContent}>
@@ -154,42 +201,90 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Stats */}
-        <View style={styles.statsSection}>
+        {/* ── Stats row ── */}
+        <View style={styles.statsRow}>
           <StatCard
             title="Clientas"
             value={clientCount}
-            subtitle="Registradas"
+            icon="people-outline"
             onPress={() => router.push("/(tabs)/clients")}
           />
           <StatCard
             title="Citas hoy"
             value={todayCount}
-            subtitle="Programadas"
+            icon="calendar-outline"
             onPress={() => router.push("/(tabs)/agenda")}
           />
           <StatCard
             title="Seguimientos"
             value={pendingCount}
-            subtitle="Pendientes"
+            icon="notifications-outline"
             onPress={() => router.push("/(tabs)/agenda")}
           />
         </View>
 
-        {/* Recent visits */}
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Últimas visitas</Text>
+        {/* ── Clientas recientes (horizontal avatars) ── */}
+        {recentClients.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Clientas recientes</Text>
+              <Pressable onPress={() => router.push("/(tabs)/clients")}>
+                <Text style={styles.seeAllText}>Ver todas</Text>
+              </Pressable>
+            </View>
+            <FlatList
+              data={recentClients}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.clientsScroll}
+              renderItem={({ item }) => (
+                <ClientPill
+                  firstName={item.firstName}
+                  lastName={item.lastName}
+                  avatarUri={item.avatarUri}
+                  onPress={() => router.push(`/clients/${item.id}`)}
+                />
+              )}
+            />
+          </View>
+        )}
+
+        {/* ── Últimas visitas ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Últimas visitas</Text>
+            {recentVisits.length > 0 && (
+              <Pressable onPress={() => router.push("/(tabs)/clients")}>
+                <Text style={styles.seeAllText}>Ver todas</Text>
+              </Pressable>
+            )}
+          </View>
           {recentVisits.length > 0 ? (
-            recentVisits.map((visit) => (
-              <RecentItem
-                key={`${visit.clientId}_${visit.date}`}
-                clientName={visit.clientName}
-                detail={visit.services.join(" • ")}
-                onPress={() => router.push(`/clients/${visit.clientId}`)}
-              />
-            ))
+            <View style={styles.visitsCard}>
+              {recentVisits.map((visit, index) => (
+                <View key={`${visit.clientId}_${visit.date}`}>
+                  <VisitRow
+                    clientName={visit.clientName}
+                    services={visit.services}
+                    date={visit.date}
+                    onPress={() => router.push(`/clients/${visit.clientId}`)}
+                  />
+                  {index < recentVisits.length - 1 && (
+                    <View style={styles.visitDivider} />
+                  )}
+                </View>
+              ))}
+            </View>
           ) : (
-            <Text style={styles.emptyText}>Sin visitas recientes</Text>
+            <View style={styles.emptyCard}>
+              <Ionicons
+                name="clipboard-outline"
+                size={32}
+                color={colors.divider}
+              />
+              <Text style={styles.emptyText}>Sin visitas recientes</Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -202,7 +297,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  // Header — warm accent color
+
+  // ── Header ──
   headerBg: {
     backgroundColor: colors.accentLight,
     paddingBottom: spacing["3xl"],
@@ -219,95 +315,148 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "bold",
   },
-  // Content
+
+  // ── Content ──
   content: {
     flex: 1,
     marginTop: -spacing.md,
   },
-  statsSection: {
+
+  // ── Stats row (3 cards horizontal) ──
+  statsRow: {
+    flexDirection: "row",
     paddingHorizontal: spacing["2xl"],
     gap: 10,
   },
-  // Compact stat cards matching mockup
   statCard: {
-    flexDirection: "row",
+    flex: 1,
     alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    paddingHorizontal: spacing.xl,
     paddingVertical: 22,
+    paddingHorizontal: 8,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
+    gap: 6,
   },
-  statTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  statSubtitle: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 3,
+  statIcon: {
+    marginBottom: 2,
   },
   statValue: {
     color: colors.primary,
     fontSize: 28,
     fontWeight: "bold",
   },
-  // Recent section
-  recentSection: {
-    paddingHorizontal: spacing["2xl"],
+  statTitle: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+
+  // ── Section ──
+  section: {
     marginTop: spacing["2xl"],
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing["2xl"],
+    marginBottom: 12,
   },
   sectionTitle: {
     color: colors.textSecondary,
     fontSize: 14,
     fontWeight: "500",
-    marginBottom: 12,
     letterSpacing: 0.5,
   },
-  recentItem: {
+  seeAllText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+
+  // ── Client pills (horizontal scroll) ──
+  clientsScroll: {
+    paddingHorizontal: spacing["2xl"],
+    gap: 16,
+  },
+  clientPill: {
+    alignItems: "center",
+    gap: 8,
+    width: 72,
+  },
+  clientPillName: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+
+  // ── Visits card ──
+  visitsCard: {
+    marginHorizontal: spacing["2xl"],
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  visitRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
   },
-  recentItemLeft: {
+  visitLeft: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
+    alignItems: "center",
+    gap: 10,
     flex: 1,
     paddingRight: 8,
   },
-  recentTextWrap: {
+  visitTextWrap: {
     flex: 1,
     gap: 2,
   },
-  recentClientName: {
+  visitClientName: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
-    marginBottom: 2,
   },
-  recentService: {
+  visitService: {
     color: colors.textSecondary,
     fontSize: 12,
-    lineHeight: 17,
   },
-  chevron: {
+  visitDate: {
     color: colors.textSecondary,
-    fontSize: 20,
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  visitDivider: {
+    height: 1,
+    backgroundColor: colors.divider,
+  },
+
+  // ── Empty state ──
+  emptyCard: {
+    marginHorizontal: spacing["2xl"],
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: 32,
+    alignItems: "center",
+    gap: 8,
   },
   emptyText: {
     color: colors.textSecondary,
     fontSize: 13,
-    paddingVertical: 16,
-    textAlign: "center",
   },
 });

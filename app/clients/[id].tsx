@@ -104,10 +104,17 @@ export default function ClientDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Back button */}
-      <View style={styles.backButtonContainer}>
+      {/* Header row: back + edit */}
+      <View style={styles.headerRow}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{"< Atras"}</Text>
+          <Text style={styles.backButtonText}>{"< Atrás"}</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push(`/clients/edit/${id}`)}
+          style={styles.editButton}
+        >
+          <Ionicons name="create-outline" size={18} color={colors.primary} />
+          <Text style={styles.editButtonText}>Editar</Text>
         </Pressable>
       </View>
 
@@ -477,7 +484,10 @@ const styles = StyleSheet.create({
   flex1: {
     flex: 1,
   },
-  backButtonContainer: {
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing["2xl"],
     paddingTop: spacing.sm,
   },
@@ -487,6 +497,18 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: colors.accent,
     fontSize: 15,
+  },
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  editButtonText: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: "500",
   },
   clientHeader: {
     alignItems: "center",

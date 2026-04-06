@@ -6,3 +6,5 @@ export { Badge } from "./Badge";
 export { SearchBar } from "./SearchBar";
 export { BrandLogo } from "./BrandLogo";
 export { PhoneInput } from "./PhoneInput";
+export { CartridgeIcon } from "./CartridgeIcon";
+export { InkBottlesIcon } from "./InkBottlesIcon";

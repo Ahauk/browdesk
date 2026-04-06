@@ -53,6 +53,27 @@ export function useProcedures(clientId?: string) {
     [fetchProcedures]
   );
 
+  const updateProcedure = useCallback(
+    async (
+      id: string,
+      input: Partial<Omit<Procedure, "id" | "createdAt" | "syncedAt">>
+    ): Promise<boolean> => {
+      try {
+        const now = new Date().toISOString();
+        await db
+          .update(procedures)
+          .set({ ...input, updatedAt: now, syncedAt: undefined })
+          .where(eq(procedures.id, id));
+        await fetchProcedures();
+        return true;
+      } catch (error) {
+        console.error("Error updating procedure:", error);
+        return false;
+      }
+    },
+    [fetchProcedures]
+  );
+
   const getRecentProcedures = useCallback(
     async (limit: number = 5): Promise<Procedure[]> => {
       try {
@@ -75,6 +96,7 @@ export function useProcedures(clientId?: string) {
     loading,
     refresh: fetchProcedures,
     createProcedure,
+    updateProcedure,
     getRecentProcedures,
   };
 }

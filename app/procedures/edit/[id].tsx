@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,28 +9,39 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { procedures, photos } from "@/db/schema";
 import { Button, Input, CartridgeIcon, InkBottlesIcon } from "@/components/ui";
 import { useProcedures } from "@/hooks/useProcedures";
-import { pickPhoto, takePhoto, savePhoto } from "@/services/photo.service";
-import { PIGMENT_COLORS, NEEDLE_TYPES, NEEDLE_GAUGES } from "@/constants/procedure";
+import {
+  pickPhoto,
+  takePhoto,
+  savePhoto,
+  deletePhoto,
+} from "@/services/photo.service";
+import { PROCEDURE_TYPES } from "@/constants";
+import {
+  PIGMENT_COLORS,
+  NEEDLE_TYPES,
+  NEEDLE_GAUGES,
+} from "@/constants/procedure";
 import { colors, spacing, radius } from "@/theme";
-import type { ToneEntry, NeedleEntry } from "@/types/models";
+import type { Procedure, Photo, ToneEntry, NeedleEntry } from "@/types/models";
 
-export default function NewProcedureScreen() {
+export default function EditProcedureScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const params = useLocalSearchParams<{
-    clientId: string;
-    clientName?: string;
-    serviceType?: string;
-    technique?: string;
-    cost?: string;
-  }>();
+  const { updateProcedure } = useProcedures();
 
-  const { createProcedure } = useProcedures();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [procedure, setProcedure] = useState<Procedure | null>(null);
 
   // Tones
   const [tones, setTones] = useState<ToneEntry[]>([]);
@@ -46,10 +57,62 @@ export default function NewProcedureScreen() {
   // Notes
   const [notes, setNotes] = useState("");
 
-  // After photos
-  const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
+  // Photos
+  const [existingPhotos, setExistingPhotos] = useState<Photo[]>([]);
+  const [removedPhotoIds, setRemovedPhotoIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [newPhotos, setNewPhotos] = useState<string[]>([]);
 
-  const [saving, setSaving] = useState(false);
+  // ── Load procedure data ──
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      const [proc] = await db
+        .select()
+        .from(procedures)
+        .where(eq(procedures.id, id))
+        .limit(1);
+
+      if (!proc) {
+        Alert.alert("Error", "Procedimiento no encontrado", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+        return;
+      }
+
+      const p = proc as Procedure;
+      setProcedure(p);
+
+      // Tones
+      if (p.tones) {
+        try {
+          setTones(JSON.parse(p.tones));
+        } catch {}
+      }
+
+      // Needles
+      if (p.needles) {
+        try {
+          setNeedles(JSON.parse(p.needles));
+        } catch {}
+      }
+
+      // Notes
+      setNotes(p.notes ?? "");
+
+      // After photos
+      const photoResults = await db
+        .select()
+        .from(photos)
+        .where(eq(photos.procedureId, id));
+      setExistingPhotos(
+        (photoResults as Photo[]).filter((ph) => ph.type === "after")
+      );
+
+      setLoading(false);
+    })();
+  }, [id]);
 
   // ── Tone helpers ──
   const addTone = (colorKey: string) => {
@@ -84,7 +147,11 @@ export default function NewProcedureScreen() {
     if (!needleType || !needleGauge || !needleCount) return;
     setNeedles((prev) => [
       ...prev,
-      { type: needleType, gauge: needleGauge, count: parseInt(needleCount, 10) },
+      {
+        type: needleType,
+        gauge: needleGauge,
+        count: parseInt(needleCount, 10),
+      },
     ]);
     setNeedleType("");
     setNeedleGauge("");
@@ -97,54 +164,83 @@ export default function NewProcedureScreen() {
   };
 
   // ── Photo helpers ──
+  const visibleExisting = existingPhotos.filter(
+    (p) => !removedPhotoIds.has(p.id)
+  );
+  const totalPhotos = visibleExisting.length + newPhotos.length;
+
   const handleAddPhoto = async (mode: "camera" | "gallery") => {
-    if (afterPhotos.length >= 5) {
-      Alert.alert("Limite", "Maximo 5 fotos despues del procedimiento");
+    if (totalPhotos >= 5) {
+      Alert.alert("Límite", "Máximo 5 fotos después del procedimiento");
       return;
     }
     const uri = mode === "camera" ? await takePhoto() : await pickPhoto();
-    if (uri) setAfterPhotos((prev) => [...prev, uri]);
+    if (uri) setNewPhotos((prev) => [...prev, uri]);
   };
 
-  const removePhoto = (index: number) => {
-    setAfterPhotos((prev) => prev.filter((_, i) => i !== index));
+  const removeExistingPhoto = (photoId: string) => {
+    setRemovedPhotoIds((prev) => new Set(prev).add(photoId));
+  };
+
+  const removeNewPhoto = (index: number) => {
+    setNewPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   // ── Save ──
   const handleSave = async () => {
     setSaving(true);
     try {
-      const procedure = await createProcedure({
-        clientId: params.clientId,
-        type: (params.serviceType as any) || "brows",
-        technique: params.technique || "",
-        cost: parseFloat(params.cost || "0"),
+      const success = await updateProcedure(id!, {
         tones: tones.length > 0 ? JSON.stringify(tones) : undefined,
         needles: needles.length > 0 ? JSON.stringify(needles) : undefined,
         notes: notes.trim() || undefined,
-        date: new Date().toISOString().split("T")[0],
       });
 
-      if (procedure) {
-        // Save after photos
-        for (const uri of afterPhotos) {
-          await savePhoto(uri, params.clientId, procedure.id, "after");
-        }
-        Alert.alert(
-          "Procedimiento guardado",
-          "El registro se guardo exitosamente",
-          [{ text: "OK", onPress: () => router.back() }]
-        );
-      } else {
-        Alert.alert("Error", "No se pudo guardar el procedimiento");
+      if (!success) {
+        Alert.alert("Error", "No se pudo actualizar el procedimiento");
+        return;
       }
+
+      // Delete removed photos
+      for (const photoId of removedPhotoIds) {
+        await deletePhoto(photoId);
+      }
+
+      // Save new photos
+      if (procedure) {
+        for (const uri of newPhotos) {
+          await savePhoto(uri, procedure.clientId, procedure.id, "after");
+        }
+      }
+
+      Alert.alert(
+        "Procedimiento actualizado",
+        "Los cambios se guardaron exitosamente",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
     } catch {
-      Alert.alert("Error", "Ocurrio un error al guardar");
+      Alert.alert("Error", "Ocurrió un error al guardar");
     } finally {
       setSaving(false);
     }
   };
 
+  /* ═══════════════════════ Loading ═══════════════════════ */
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator color={colors.accent} size="large" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!procedure) return null;
+
+  const typeLabel =
+    PROCEDURE_TYPES.find((t) => t.key === procedure.type)?.label ||
+    procedure.type;
+
+  /* ═══════════════════════ Render ═══════════════════════ */
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
@@ -156,7 +252,7 @@ export default function NewProcedureScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </Pressable>
-          <Text style={styles.headerTitle}>Registrar procedimiento</Text>
+          <Text style={styles.headerTitle}>Editar procedimiento</Text>
           <View style={{ width: 24 }} />
         </View>
 
@@ -166,22 +262,22 @@ export default function NewProcedureScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Client info */}
+          {/* Procedure info (read-only) */}
           <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Clienta</Text>
-            <Text style={styles.infoValue}>{params.clientName || "—"}</Text>
-            {params.technique && (
+            <Text style={styles.infoLabel}>Zona</Text>
+            <Text style={styles.infoValue}>{typeLabel}</Text>
+            {procedure.technique && (
               <>
-                <Text style={[styles.infoLabel, { marginTop: 8 }]}>Servicio</Text>
-                <Text style={styles.infoValue}>{params.technique}</Text>
+                <Text style={[styles.infoLabel, { marginTop: 8 }]}>
+                  Técnica
+                </Text>
+                <Text style={styles.infoValue}>{procedure.technique}</Text>
               </>
             )}
-            {params.cost && (
-              <>
-                <Text style={[styles.infoLabel, { marginTop: 8 }]}>Costo</Text>
-                <Text style={styles.infoValue}>${parseFloat(params.cost).toLocaleString()} MXN</Text>
-              </>
-            )}
+            <Text style={[styles.infoLabel, { marginTop: 8 }]}>Costo</Text>
+            <Text style={styles.infoValue}>
+              ${procedure.cost.toLocaleString()} MXN
+            </Text>
           </View>
 
           {/* ── Tonos utilizados ── */}
@@ -190,32 +286,48 @@ export default function NewProcedureScreen() {
             <Text style={styles.sectionTitle}>Tonos utilizados</Text>
           </View>
 
-          {/* Current tones */}
           {tones.length > 0 && (
             <View style={styles.tonesListCard}>
               {tones.map((tone) => {
-                const colorInfo = PIGMENT_COLORS.find((c) => c.key === tone.color);
+                const colorInfo = PIGMENT_COLORS.find(
+                  (c) => c.key === tone.color
+                );
                 return (
                   <View key={tone.color} style={styles.toneRow}>
-                    <View style={[styles.toneColorDot, { backgroundColor: colorInfo?.hex || "#999" }]} />
-                    <Text style={styles.toneName}>{colorInfo?.label || tone.color}</Text>
+                    <View
+                      style={[
+                        styles.toneColorDot,
+                        { backgroundColor: colorInfo?.hex || "#999" },
+                      ]}
+                    />
+                    <Text style={styles.toneName}>
+                      {colorInfo?.label || tone.color}
+                    </Text>
                     <View style={styles.toneDropsControl}>
                       <Pressable
-                        onPress={() => updateToneDrops(tone.color, tone.drops - 1)}
+                        onPress={() =>
+                          updateToneDrops(tone.color, tone.drops - 1)
+                        }
                         style={styles.toneBtn}
                       >
                         <Text style={styles.toneBtnText}>−</Text>
                       </Pressable>
                       <Text style={styles.toneDrops}>{tone.drops} gotas</Text>
                       <Pressable
-                        onPress={() => updateToneDrops(tone.color, tone.drops + 1)}
+                        onPress={() =>
+                          updateToneDrops(tone.color, tone.drops + 1)
+                        }
                         style={styles.toneBtn}
                       >
                         <Text style={styles.toneBtnText}>+</Text>
                       </Pressable>
                     </View>
                     <Pressable onPress={() => removeTone(tone.color)} hitSlop={8}>
-                      <Ionicons name="close-circle" size={20} color={colors.danger} />
+                      <Ionicons
+                        name="close-circle"
+                        size={20}
+                        color={colors.danger}
+                      />
                     </Pressable>
                   </View>
                 );
@@ -223,7 +335,6 @@ export default function NewProcedureScreen() {
             </View>
           )}
 
-          {/* Add tone button / selector */}
           {showToneSelector ? (
             <View style={styles.colorGrid}>
               {PIGMENT_COLORS.map((color) => (
@@ -235,7 +346,9 @@ export default function NewProcedureScreen() {
                   }}
                   style={styles.colorOption}
                 >
-                  <View style={[styles.colorCircle, { backgroundColor: color.hex }]} />
+                  <View
+                    style={[styles.colorCircle, { backgroundColor: color.hex }]}
+                  />
                   <Text style={styles.colorLabel}>{color.label}</Text>
                 </Pressable>
               ))}
@@ -245,7 +358,11 @@ export default function NewProcedureScreen() {
               onPress={() => setShowToneSelector(true)}
               style={styles.addButton}
             >
-              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={colors.primary}
+              />
               <Text style={styles.addButtonText}>Agregar tono</Text>
             </Pressable>
           )}
@@ -260,12 +377,21 @@ export default function NewProcedureScreen() {
             <View style={styles.tonesListCard}>
               {needles.map((needle, index) => (
                 <View key={index} style={styles.toneRow}>
-                  <Ionicons name="hardware-chip-outline" size={18} color={colors.primary} />
+                  <Ionicons
+                    name="hardware-chip-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
                   <Text style={styles.toneName}>
-                    {needle.type} · Calibre {needle.gauge} · {needle.count} agujas
+                    {needle.type} · Calibre {needle.gauge} · {needle.count}{" "}
+                    agujas
                   </Text>
                   <Pressable onPress={() => removeNeedle(index)} hitSlop={8}>
-                    <Ionicons name="close-circle" size={20} color={colors.danger} />
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={colors.danger}
+                    />
                   </Pressable>
                 </View>
               ))}
@@ -349,7 +475,11 @@ export default function NewProcedureScreen() {
               onPress={() => setShowNeedleForm(true)}
               style={styles.addButton}
             >
-              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={colors.primary}
+              />
               <Text style={styles.addButtonText}>Agregar aguja</Text>
             </Pressable>
           )}
@@ -370,39 +500,72 @@ export default function NewProcedureScreen() {
 
           {/* ── Fotos después ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
-            Fotos despues del procedimiento
+            Fotos después del procedimiento
           </Text>
-          <Text style={styles.photoHint}>
-            Hasta 5 fotos del resultado final
-          </Text>
+          <Text style={styles.photoHint}>Hasta 5 fotos del resultado final</Text>
 
           <View style={styles.photoGrid}>
-            {afterPhotos.map((uri, index) => (
-              <View key={index} style={styles.photoThumb}>
-                <Image source={{ uri }} style={styles.photoThumbImage} />
+            {/* Existing photos */}
+            {visibleExisting.map((photo) => (
+              <View key={photo.id} style={styles.photoThumb}>
+                <Image
+                  source={{ uri: photo.localUri }}
+                  style={styles.photoThumbImage}
+                />
                 <Pressable
-                  onPress={() => removePhoto(index)}
+                  onPress={() => removeExistingPhoto(photo.id)}
                   style={styles.photoRemoveBtn}
                 >
-                  <Ionicons name="close-circle" size={22} color={colors.danger} />
+                  <Ionicons
+                    name="close-circle"
+                    size={22}
+                    color={colors.danger}
+                  />
                 </Pressable>
               </View>
             ))}
-            {afterPhotos.length < 5 && (
+            {/* New photos */}
+            {newPhotos.map((uri, index) => (
+              <View key={`new-${index}`} style={styles.photoThumb}>
+                <Image source={{ uri }} style={styles.photoThumbImage} />
+                <Pressable
+                  onPress={() => removeNewPhoto(index)}
+                  style={styles.photoRemoveBtn}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={22}
+                    color={colors.danger}
+                  />
+                </Pressable>
+                <View style={styles.newBadge}>
+                  <Ionicons name="add" size={12} color={colors.white} />
+                </View>
+              </View>
+            ))}
+            {totalPhotos < 5 && (
               <View style={styles.photoAddButtons}>
                 <Pressable
                   onPress={() => handleAddPhoto("camera")}
                   style={styles.photoAddBtn}
                 >
-                  <Ionicons name="camera-outline" size={24} color={colors.primary} />
-                  <Text style={styles.photoAddText}>Camara</Text>
+                  <Ionicons
+                    name="camera-outline"
+                    size={24}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.photoAddText}>Cámara</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => handleAddPhoto("gallery")}
                   style={styles.photoAddBtn}
                 >
-                  <Ionicons name="images-outline" size={24} color={colors.primary} />
-                  <Text style={styles.photoAddText}>Galeria</Text>
+                  <Ionicons
+                    name="images-outline"
+                    size={24}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.photoAddText}>Galería</Text>
                 </Pressable>
               </View>
             )}
@@ -412,7 +575,7 @@ export default function NewProcedureScreen() {
         {/* Save button */}
         <View style={styles.bottomButton}>
           <Button
-            title="Guardar procedimiento"
+            title="Guardar cambios"
             onPress={handleSave}
             loading={saving}
           />
@@ -424,6 +587,12 @@ export default function NewProcedureScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -442,7 +611,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   infoLabel: { fontSize: 11, color: colors.textSecondary },
-  infoValue: { fontSize: 15, fontWeight: "600", color: colors.text, marginTop: 2 },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 2,
+  },
 
   // Sections
   sectionHeader: {
@@ -492,7 +666,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   toneBtnText: { fontSize: 16, fontWeight: "600", color: colors.primary },
-  toneDrops: { fontSize: 13, color: colors.textSecondary, minWidth: 50, textAlign: "center" },
+  toneDrops: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    minWidth: 50,
+    textAlign: "center",
+  },
 
   // Color grid
   colorGrid: {
@@ -512,7 +691,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.divider,
   },
-  colorLabel: { fontSize: 10, color: colors.textSecondary, textAlign: "center" },
+  colorLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
 
   // Add button
   addButton: {
@@ -540,7 +723,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.divider,
   },
-  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextSelected: { color: colors.white, fontWeight: "600" },
 
@@ -554,6 +740,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   photoRemoveBtn: { position: "absolute", top: -6, right: -6 },
+  newBadge: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    backgroundColor: colors.accent,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   photoAddButtons: { flexDirection: "row", gap: 10 },
   photoAddBtn: {
     width: 100,

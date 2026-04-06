@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { eq } from "drizzle-orm";
@@ -18,6 +18,8 @@ import { deletePhoto } from "@/services/photo.service";
 import { formatDate } from "@/utils/format";
 import { PROCEDURE_TYPES } from "@/constants";
 import { PIGMENT_COLORS, NEEDLE_TYPES } from "@/constants/procedure";
+import { CartridgeIcon } from "@/components/ui/CartridgeIcon";
+import { InkBottlesIcon } from "@/components/ui/InkBottlesIcon";
 import { colors, spacing, radius } from "@/theme";
 import type { Procedure, Photo, ToneEntry, NeedleEntry } from "@/types/models";
 
@@ -28,25 +30,28 @@ export default function ProcedureDetailScreen() {
   const [procPhotos, setProcPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      if (!id) return;
-      const [proc] = await db
-        .select()
-        .from(procedures)
-        .where(eq(procedures.id, id))
-        .limit(1);
-      setProcedure((proc as Procedure) || null);
+  const loadData = useCallback(async () => {
+    if (!id) return;
+    const [proc] = await db
+      .select()
+      .from(procedures)
+      .where(eq(procedures.id, id))
+      .limit(1);
+    setProcedure((proc as Procedure) || null);
 
-      const photoResults = await db
-        .select()
-        .from(photos)
-        .where(eq(photos.procedureId, id));
-      setProcPhotos(photoResults as Photo[]);
-      setLoading(false);
-    }
-    load();
+    const photoResults = await db
+      .select()
+      .from(photos)
+      .where(eq(photos.procedureId, id));
+    setProcPhotos(photoResults as Photo[]);
+    setLoading(false);
   }, [id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleDeletePhoto = (photoId: string) => {
     Alert.alert(
@@ -97,7 +102,13 @@ export default function ProcedureDetailScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.primary} />
         </Pressable>
         <Text style={styles.headerTitle}>Detalle del procedimiento</Text>
-        <View style={{ width: 24 }} />
+        <Pressable
+          onPress={() => router.push(`/procedures/edit/${id}`)}
+          hitSlop={12}
+          style={styles.editButton}
+        >
+          <Ionicons name="create-outline" size={20} color={colors.primary} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -130,7 +141,10 @@ export default function ProcedureDetailScreen() {
         {/* Tones */}
         {tones.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Tonos utilizados</Text>
+            <View style={styles.sectionHeader}>
+              <InkBottlesIcon size={20} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Tonos utilizados</Text>
+            </View>
             <View style={styles.card}>
               {tones.map((tone) => {
                 const colorInfo = PIGMENT_COLORS.find(
@@ -158,7 +172,10 @@ export default function ProcedureDetailScreen() {
         {/* Needles */}
         {needlesList.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Agujas utilizadas</Text>
+            <View style={styles.sectionHeader}>
+              <CartridgeIcon size={20} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Agujas utilizadas</Text>
+            </View>
             <View style={styles.card}>
               {needlesList.map((needle, i) => {
                 const typeInfo = NEEDLE_TYPES.find(
@@ -166,8 +183,7 @@ export default function ProcedureDetailScreen() {
                 );
                 return (
                   <View key={i} style={styles.needleRow}>
-                    <Ionicons
-                      name="hardware-chip-outline"
+                    <CartridgeIcon
                       size={16}
                       color={colors.primary}
                     />
@@ -294,6 +310,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   headerTitle: { fontSize: 17, fontWeight: "600", color: colors.text },
+  editButton: { padding: 4 },
   scrollContent: {
     paddingHorizontal: spacing["2xl"],
     paddingBottom: 40,
@@ -316,12 +333,17 @@ const styles = StyleSheet.create({
   value: { fontSize: 14, fontWeight: "500", color: colors.text },
 
   // Sections
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 8,
+  },
   sectionTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: colors.text,
-    marginBottom: 10,
-    marginTop: 8,
   },
 
   // Tones
