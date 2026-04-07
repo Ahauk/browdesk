@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initializeDatabase } from "@/db/client";
+import { runSupabaseMigrations } from "@/services/supabase-migrations";
 import { useAppStore } from "@/stores/app.store";
 import { colors } from "@/theme";
 
@@ -15,6 +16,8 @@ export default function RootLayout() {
       try {
         await initializeDatabase();
         setDbReady(true);
+        // Run Supabase migrations in background (non-blocking)
+        runSupabaseMigrations().catch(() => {});
       } catch (error) {
         console.error("Failed to initialize database:", error);
       }

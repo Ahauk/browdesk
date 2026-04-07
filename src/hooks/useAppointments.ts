@@ -69,6 +69,27 @@ export function useAppointments() {
     [fetchAppointments]
   );
 
+  const updateAppointment = useCallback(
+    async (
+      id: string,
+      input: Partial<Omit<Appointment, "id" | "createdAt" | "syncedAt">>
+    ): Promise<boolean> => {
+      try {
+        const now = new Date().toISOString();
+        await db
+          .update(appointments)
+          .set({ ...input, updatedAt: now, syncedAt: undefined })
+          .where(eq(appointments.id, id));
+        await fetchAppointments();
+        return true;
+      } catch (error) {
+        console.error("Error updating appointment:", error);
+        return false;
+      }
+    },
+    [fetchAppointments]
+  );
+
   const updateAppointmentStatus = useCallback(
     async (id: string, status: Appointment["status"]): Promise<boolean> => {
       try {
@@ -87,6 +108,20 @@ export function useAppointments() {
     [fetchAppointments]
   );
 
+  const deleteAppointment = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        await db.delete(appointments).where(eq(appointments.id, id));
+        await fetchAppointments();
+        return true;
+      } catch (error) {
+        console.error("Error deleting appointment:", error);
+        return false;
+      }
+    },
+    [fetchAppointments]
+  );
+
   const todayCount = todayAppointments.length;
 
   return {
@@ -97,6 +132,8 @@ export function useAppointments() {
     loading,
     refresh: fetchAppointments,
     createAppointment,
+    updateAppointment,
     updateAppointmentStatus,
+    deleteAppointment,
   };
 }

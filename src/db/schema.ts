@@ -72,8 +72,11 @@ export const appointments = sqliteTable("appointments", {
     .notNull()
     .references(() => clients.id),
   procedureType: text("procedure_type"),
+  procedureTypes: text("procedure_types"), // JSON array of ProcedureType keys
   date: text("date").notNull(),
   time: text("time").notNull(),
+  endTime: text("end_time"), // HH:mm calculated from time + duration
+  duration: integer("duration"), // minutes
   notes: text("notes"),
   status: text("status").notNull().default("scheduled"),
   createdAt: text("created_at").notNull(),

@@ -88,8 +88,11 @@ export interface Appointment {
   id: string;
   clientId: string;
   procedureType?: ProcedureType;
+  procedureTypes?: string; // JSON array of ProcedureType keys
   date: string;
   time: string;
+  endTime?: string; // HH:mm
+  duration?: number; // minutes
   notes?: string;
   status: AppointmentStatus;
   createdAt: string;

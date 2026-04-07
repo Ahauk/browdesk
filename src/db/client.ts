@@ -128,6 +128,19 @@ export async function initializeDatabase(): Promise<void> {
     }
   }
 
+  const newAppointmentColumns = [
+    "procedure_types TEXT",
+    "end_time TEXT",
+    "duration INTEGER",
+  ];
+  for (const col of newAppointmentColumns) {
+    try {
+      expoDb.execSync(`ALTER TABLE appointments ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists
+    }
+  }
+
   const newProcColumns = [
     "zone_details TEXT",
     "guarantee INTEGER",
