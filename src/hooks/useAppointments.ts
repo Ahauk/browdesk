@@ -2,9 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { randomUUID } from "expo-crypto";
 import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
 import { db } from "@/db/client";
 import { appointments } from "@/db/schema";
+import { scheduleAppointmentReminder } from "@/services/notification.service";
 import type { Appointment } from "@/types/models";
+
+dayjs.extend(customParseFormat);
 
 export function useAppointments() {
   const [data, setData] = useState<Appointment[]>([]);
@@ -59,6 +63,22 @@ export function useAppointments() {
           updatedAt: now,
         };
         await db.insert(appointments).values(newAppointment);
+
+        // Schedule notification 1 hour before
+        try {
+          const aptDateTime = dayjs(`${input.date} ${input.time}`, "YYYY-MM-DD HH:mm");
+          const reminderDate = aptDateTime.subtract(1, "hour").toDate();
+          if (reminderDate > new Date()) {
+            await scheduleAppointmentReminder(
+              "Cita en 1 hora",
+              `${input.time} — ${input.procedureType || "Cita"}`,
+              reminderDate
+            );
+          }
+        } catch {
+          // Notification failure shouldn't block appointment creation
+        }
+
         await fetchAppointments();
         return newAppointment;
       } catch (error) {

@@ -112,6 +112,16 @@ export interface FollowUp {
   syncedAt?: string;
 }
 
+export type InspirationCategory = "brows" | "lips" | "eyes";
+
+export interface Inspiration {
+  id: string;
+  category: InspirationCategory;
+  localUri: string;
+  caption?: string;
+  createdAt: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;

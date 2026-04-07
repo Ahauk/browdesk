@@ -94,6 +94,14 @@ export async function initializeDatabase(): Promise<void> {
       synced_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS inspirations (
+      id TEXT PRIMARY KEY,
+      category TEXT NOT NULL,
+      local_uri TEXT NOT NULL,
+      caption TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS user_profile (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

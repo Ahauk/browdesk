@@ -100,6 +100,14 @@ export const followUps = sqliteTable("follow_ups", {
   syncedAt: text("synced_at"),
 });
 
+export const inspirations = sqliteTable("inspirations", {
+  id: text("id").primaryKey(),
+  category: text("category").notNull(), // "brows" | "lips" | "eyes"
+  localUri: text("local_uri").notNull(),
+  caption: text("caption"),
+  createdAt: text("created_at").notNull(),
+});
+
 export const userProfile = sqliteTable("user_profile", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

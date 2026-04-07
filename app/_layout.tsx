@@ -83,6 +83,13 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: colors.bg },
           }}
         />
+        <Stack.Screen
+          name="inspiration/index"
+          options={{
+            animation: "slide_from_right",
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </GestureHandlerRootView>

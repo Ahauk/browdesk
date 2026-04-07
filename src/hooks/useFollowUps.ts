@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "expo-crypto";
+import dayjs from "dayjs";
 import { db } from "@/db/client";
 import { followUps } from "@/db/schema";
+import { scheduleFollowUpReminder } from "@/services/notification.service";
 import type { FollowUp } from "@/types/models";
 
 export function useFollowUps(clientId?: string) {
@@ -46,6 +48,25 @@ export function useFollowUps(clientId?: string) {
           updatedAt: now,
         };
         await db.insert(followUps).values(newFollowUp);
+
+        // Schedule notification at 9am on due date
+        try {
+          const reminderDate = dayjs(input.dueDate)
+            .hour(9)
+            .minute(0)
+            .second(0)
+            .toDate();
+          if (reminderDate > new Date()) {
+            await scheduleFollowUpReminder(
+              "Seguimiento",
+              input.notes || "Seguimiento pendiente",
+              reminderDate
+            );
+          }
+        } catch {
+          // Notification failure shouldn't block follow-up creation
+        }
+
         await fetchFollowUps();
         return newFollowUp;
       } catch (error) {

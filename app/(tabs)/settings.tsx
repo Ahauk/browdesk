@@ -1,71 +1,451 @@
-import { View, Text, Pressable, Switch, StyleSheet } from "react-native";
+import { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Switch,
+  Alert,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { Avatar, Card, Button } from "@/components/ui";
-import { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { Avatar, Input, Button } from "@/components/ui";
+import { useProfile } from "@/hooks/useProfile";
+import { pickPhoto } from "@/services/photo.service";
+import { exportBackup } from "@/services/backup.service";
+import {
+  savePin,
+  verifyPin,
+  hasPin,
+  isBiometricAvailable,
+} from "@/services/auth.service";
+import { requestNotificationPermissions } from "@/services/notification.service";
 import { colors, spacing, radius } from "@/theme";
+import {
+  documentDirectory,
+  copyAsync,
+  makeDirectoryAsync,
+  getInfoAsync,
+} from "expo-file-system/legacy";
+import { randomUUID } from "expo-crypto";
 
-function SettingsRow({
-  label,
-  onPress,
-  trailing,
-}: {
-  label: string;
-  onPress?: () => void;
-  trailing?: React.ReactNode;
-}) {
-  return (
-    <Pressable onPress={onPress} style={styles.settingsRow}>
-      <Text style={styles.settingsLabel}>{label}</Text>
-      {trailing || <Text style={styles.chevron}>{">"}</Text>}
-    </Pressable>
-  );
-}
+/* ───────────────── PIN Modal Inline ───────────────── */
+type PinStep = "verify" | "new" | "confirm";
 
+/* ═══════════════════════ Main Screen ═══════════════════════ */
 export default function SettingsScreen() {
   const router = useRouter();
-  const [biometricEnabled, setBiometricEnabled] = useState(true);
+  const { profile, loading, updateProfile, refresh } = useProfile();
+
+  // Edit mode
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+
+  // PIN change
+  const [showPinChange, setShowPinChange] = useState(false);
+  const [pinStep, setPinStep] = useState<PinStep>("verify");
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [hasPinSet, setHasPinSet] = useState(false);
+
+  // Biometric
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+
+  // Backup
+  const [exporting, setExporting] = useState(false);
+
+  // Load state on focus
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+      hasPin().then(setHasPinSet);
+      isBiometricAvailable().then(setBiometricAvailable);
+    }, [])
+  );
+
+  // ── Profile photo ──
+  const handleChangePhoto = async () => {
+    const uri = await pickPhoto();
+    if (!uri) return;
+
+    // Copy to permanent location
+    const avatarDir = `${documentDirectory}avatars/`;
+    const dirInfo = await getInfoAsync(avatarDir);
+    if (!dirInfo.exists) {
+      await makeDirectoryAsync(avatarDir, { intermediates: true });
+    }
+    const ext = uri.split(".").pop() || "jpg";
+    const dest = `${avatarDir}profile.${ext}`;
+    await copyAsync({ from: uri, to: dest });
+
+    await updateProfile({ avatarUri: dest });
+  };
+
+  // ── Profile edit ──
+  const startEditProfile = () => {
+    setEditName(profile?.name || "");
+    setEditEmail(profile?.email || "");
+    setEditingProfile(true);
+  };
+
+  const saveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert("Error", "El nombre es requerido");
+      return;
+    }
+    await updateProfile({
+      name: editName.trim(),
+      email: editEmail.trim() || undefined,
+    });
+    setEditingProfile(false);
+  };
+
+  // ── Biometric toggle ──
+  const handleBiometricToggle = async (value: boolean) => {
+    await updateProfile({ biometricEnabled: value });
+  };
+
+  // ── PIN change ──
+  const startPinChange = () => {
+    setShowPinChange(true);
+    setPinStep(hasPinSet ? "verify" : "new");
+    setCurrentPin("");
+    setNewPin("");
+    setConfirmPin("");
+    setPinError("");
+  };
+
+  const handlePinAction = async () => {
+    setPinError("");
+
+    if (pinStep === "verify") {
+      if (currentPin.length !== 4) {
+        setPinError("El PIN debe ser de 4 dígitos");
+        return;
+      }
+      const valid = await verifyPin(currentPin);
+      if (!valid) {
+        setPinError("PIN incorrecto");
+        return;
+      }
+      setPinStep("new");
+      return;
+    }
+
+    if (pinStep === "new") {
+      if (newPin.length !== 4) {
+        setPinError("El PIN debe ser de 4 dígitos");
+        return;
+      }
+      setPinStep("confirm");
+      return;
+    }
+
+    if (pinStep === "confirm") {
+      if (confirmPin !== newPin) {
+        setPinError("Los PIN no coinciden");
+        setConfirmPin("");
+        return;
+      }
+      await savePin(newPin);
+      setHasPinSet(true);
+      setShowPinChange(false);
+      Alert.alert("PIN actualizado", "Tu nuevo PIN se guardó correctamente");
+    }
+  };
+
+  // ── Backup ──
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const success = await exportBackup();
+      if (!success) {
+        Alert.alert("Error", "No se pudo exportar el respaldo");
+      }
+    } catch {
+      Alert.alert("Error", "Ocurrió un error al exportar");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ── Notifications permission ──
+  const handleNotificationPermission = async () => {
+    const granted = await requestNotificationPermissions();
+    Alert.alert(
+      granted ? "Notificaciones activadas" : "Permiso denegado",
+      granted
+        ? "Recibirás recordatorios de citas y seguimientos"
+        : "Puedes activarlas desde Configuración del sistema"
+    );
+  };
+
+  if (loading || !profile) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator color={colors.accent} size="large" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Ajustes</Text>
-      </View>
-
-      {/* Profile */}
-      <View style={styles.profileSection}>
-        <Avatar firstName="Carolina" lastName="Vazquez" size="lg" />
-        <Text style={styles.profileName}>Carolina Vazquez</Text>
-      </View>
-
-      {/* Settings sections */}
-      <View style={styles.settingsContainer}>
-        <Card variant="light" style={styles.settingsCard}>
-          <SettingsRow
-            label="Seguridad"
-            trailing={
-              <Switch
-                value={biometricEnabled}
-                onValueChange={setBiometricEnabled}
-                trackColor={{ false: "#ccc", true: colors.accent }}
-                thumbColor={colors.white}
-              />
-            }
-          />
-          <SettingsRow label="Datos clinicos" />
-          <SettingsRow label="Exportar respaldo" />
-        </Card>
-
-        <View style={styles.saveButtonContainer}>
-          <Button
-            title="Guardar"
-            onPress={() => {
-              // TODO: Save settings
-              router.back();
-            }}
-          />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Ajustes</Text>
         </View>
-      </View>
+
+        {/* ── Profile section ── */}
+        <View style={styles.profileSection}>
+          <Pressable onPress={handleChangePhoto} style={styles.avatarWrap}>
+            <Avatar
+              firstName={profile.name.split(" ")[0]}
+              lastName={profile.name.split(" ")[1] || ""}
+              uri={profile.avatarUri}
+              size="lg"
+            />
+            <View style={styles.cameraBadge}>
+              <Ionicons name="camera" size={14} color={colors.white} />
+            </View>
+          </Pressable>
+
+          {editingProfile ? (
+            <View style={styles.editProfileForm}>
+              <Input
+                label="Nombre"
+                value={editName}
+                onChangeText={setEditName}
+                variant="light"
+                maxLength={60}
+              />
+              <Input
+                label="Email"
+                placeholder="Opcional"
+                value={editEmail}
+                onChangeText={setEditEmail}
+                variant="light"
+                keyboardType="email-address"
+                maxLength={100}
+              />
+              <View style={styles.editProfileActions}>
+                <View style={{ flex: 1 }}>
+                  <Button title="Guardar" onPress={saveProfile} size="sm" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    title="Cancelar"
+                    onPress={() => setEditingProfile(false)}
+                    variant="outline"
+                    size="sm"
+                  />
+                </View>
+              </View>
+            </View>
+          ) : (
+            <Pressable onPress={startEditProfile} style={styles.profileInfo}>
+              <Text style={styles.profileName}>{profile.name}</Text>
+              {profile.email && (
+                <Text style={styles.profileEmail}>{profile.email}</Text>
+              )}
+              <Text style={styles.editHint}>Toca para editar</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* ── Security section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Seguridad</Text>
+          <View style={styles.card}>
+            {/* Biometric toggle */}
+            {biometricAvailable && (
+              <View style={styles.settingsRow}>
+                <View style={styles.settingsRowLeft}>
+                  <Ionicons
+                    name="finger-print-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.settingsLabel}>Face ID / Touch ID</Text>
+                </View>
+                <Switch
+                  value={profile.biometricEnabled}
+                  onValueChange={handleBiometricToggle}
+                  trackColor={{ false: colors.divider, true: colors.accent }}
+                  thumbColor={colors.white}
+                />
+              </View>
+            )}
+
+            {/* Change PIN */}
+            <Pressable onPress={startPinChange} style={styles.settingsRow}>
+              <View style={styles.settingsRowLeft}>
+                <Ionicons
+                  name="keypad-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.settingsLabel}>
+                  {hasPinSet ? "Cambiar PIN" : "Configurar PIN"}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ── PIN Change inline ── */}
+        {showPinChange && (
+          <View style={styles.section}>
+            <View style={styles.pinCard}>
+              <Text style={styles.pinTitle}>
+                {pinStep === "verify"
+                  ? "Ingresa tu PIN actual"
+                  : pinStep === "new"
+                    ? "Ingresa tu nuevo PIN"
+                    : "Confirma tu nuevo PIN"}
+              </Text>
+              <Input
+                placeholder="4 dígitos"
+                value={
+                  pinStep === "verify"
+                    ? currentPin
+                    : pinStep === "new"
+                      ? newPin
+                      : confirmPin
+                }
+                onChangeText={(v) => {
+                  const clean = v.replace(/\D/g, "").slice(0, 4);
+                  if (pinStep === "verify") setCurrentPin(clean);
+                  else if (pinStep === "new") setNewPin(clean);
+                  else setConfirmPin(clean);
+                }}
+                variant="light"
+                keyboardType="numeric"
+                maxLength={4}
+                secureTextEntry
+                error={pinError || undefined}
+              />
+              <View style={styles.pinActions}>
+                <View style={{ flex: 1 }}>
+                  <Button title="Continuar" onPress={handlePinAction} size="sm" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    title="Cancelar"
+                    onPress={() => setShowPinChange(false)}
+                    variant="outline"
+                    size="sm"
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Notifications section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notificaciones</Text>
+          <View style={styles.card}>
+            <Pressable
+              onPress={handleNotificationPermission}
+              style={styles.settingsRow}
+            >
+              <View style={styles.settingsRowLeft}>
+                <Ionicons
+                  name="notifications-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.settingsLabel}>
+                  Activar notificaciones
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ── Herramientas section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Herramientas</Text>
+          <View style={styles.card}>
+            <Pressable
+              onPress={() => router.push("/inspiration")}
+              style={styles.settingsRow}
+            >
+              <View style={styles.settingsRowLeft}>
+                <Ionicons
+                  name="images-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.settingsLabel}>
+                  Catálogo de inspiración
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ── Data section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Datos</Text>
+          <View style={styles.card}>
+            <Pressable onPress={handleExport} style={styles.settingsRow}>
+              <View style={styles.settingsRowLeft}>
+                <Ionicons
+                  name="download-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.settingsLabel}>Exportar respaldo</Text>
+              </View>
+              {exporting ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              )}
+            </Pressable>
+          </View>
+          <Text style={styles.sectionHint}>
+            Genera un archivo JSON con todos tus datos
+          </Text>
+        </View>
+
+        {/* ── App info ── */}
+        <View style={styles.appInfo}>
+          <Text style={styles.appInfoText}>BrowDesk v1.0.0</Text>
+          <Text style={styles.appInfoText}>Carolina Vazquez Studio</Text>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -75,49 +455,153 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Header
   header: {
     paddingHorizontal: spacing["2xl"],
     paddingTop: spacing.lg,
-    paddingBottom: spacing["2xl"],
+    paddingBottom: spacing.md,
   },
   headerTitle: {
     color: colors.text,
     fontSize: 20,
     fontWeight: "bold",
   },
+
+  // Profile
   profileSection: {
     alignItems: "center",
-    paddingVertical: spacing["2xl"],
+    paddingVertical: spacing.xl,
+    gap: 12,
+  },
+  avatarWrap: {
+    position: "relative",
+  },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
+  profileInfo: {
+    alignItems: "center",
+    gap: 4,
   },
   profileName: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "bold",
-    marginTop: 12,
   },
-  settingsContainer: {
+  profileEmail: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  editHint: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  editProfileForm: {
+    width: "100%",
     paddingHorizontal: spacing["2xl"],
+    gap: 12,
+    marginTop: 8,
   },
-  settingsCard: {
-    marginBottom: 16,
+  editProfileActions: {
+    flexDirection: "row",
+    gap: 10,
   },
+
+  // Section
+  section: {
+    paddingHorizontal: spacing["2xl"],
+    marginBottom: spacing.lg,
+  },
+  sectionTitle: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  sectionHint: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 6,
+    paddingHorizontal: 4,
+  },
+
+  // Card
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+  },
+
+  // Settings row
   settingsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
+  },
+  settingsRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   settingsLabel: {
     color: colors.text,
     fontSize: 15,
   },
-  chevron: {
-    color: colors.textSecondary,
-    fontSize: 17,
+
+  // PIN
+  pinCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
   },
-  saveButtonContainer: {
-    marginTop: spacing["2xl"],
+  pinTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  pinActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+
+  // App info
+  appInfo: {
+    alignItems: "center",
+    paddingVertical: spacing["2xl"],
+    gap: 4,
+  },
+  appInfoText: {
+    color: colors.textSecondary,
+    fontSize: 12,
   },
 });
