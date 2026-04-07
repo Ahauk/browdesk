@@ -21,18 +21,20 @@ async function ensurePhotosDir() {
 }
 
 export async function pickPhoto(): Promise<string | null> {
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== "granted") return null;
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
 
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ["images"],
-    allowsEditing: true,
-    aspect: [4, 3],
-    quality: 0.8,
-  });
-
-  if (result.canceled || !result.assets[0]) return null;
-  return result.assets[0].uri;
+    if (result.canceled || !result.assets[0]) return null;
+    return result.assets[0].uri;
+  } catch (error) {
+    console.error("Error picking photo:", error);
+    return null;
+  }
 }
 
 export async function takePhoto(): Promise<string | null> {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { setStatusBarStyle } from "expo-status-bar";
 import {
   View,
   Text,
@@ -100,6 +101,7 @@ export default function ClientsListScreen() {
   // Refresh list when screen comes into focus
   useFocusEffect(
     useCallback(() => {
+      setStatusBarStyle("dark");
       refresh();
     }, [refresh])
   );

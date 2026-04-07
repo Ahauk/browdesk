@@ -7,6 +7,7 @@ import {
   StyleSheet,
   FlatList,
 } from "react-native";
+import { setStatusBarStyle } from "expo-status-bar";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -172,6 +173,7 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setStatusBarStyle("light");
       refreshClients();
       refreshAppointments();
       refreshFollowUps();
@@ -287,6 +289,25 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* ── Inspiración shortcut ── */}
+        <Pressable
+          onPress={() => router.push("/inspiration")}
+          style={styles.inspirationCard}
+        >
+          <Ionicons name="images-outline" size={22} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inspirationTitle}>Catálogo de inspiración</Text>
+            <Text style={styles.inspirationHint}>
+              Fotos de referencia para tus clientas
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -444,6 +465,34 @@ const styles = StyleSheet.create({
   visitDivider: {
     height: 1,
     backgroundColor: colors.divider,
+  },
+
+  // ── Inspiration card ──
+  inspirationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: spacing["2xl"],
+    marginTop: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 16,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  inspirationTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  inspirationHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
 
   // ── Empty state ──

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import Svg, { Path } from "react-native-svg";
 import {
@@ -278,6 +279,7 @@ export default function UnlockScreen() {
           </Pressable>
         )}
       </View>
+      <StatusBar style="light" />
     </View>
   );
 }

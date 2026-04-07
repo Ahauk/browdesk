@@ -22,7 +22,7 @@ export function useProfile() {
       if (result) {
         setProfile(result as UserProfile);
       } else {
-        // Create default profile
+        // Create default profile (ignore if already exists)
         const now = new Date().toISOString();
         const defaultProfile: UserProfile = {
           id: PROFILE_ID,
@@ -31,8 +31,14 @@ export function useProfile() {
           createdAt: now,
           updatedAt: now,
         };
-        await db.insert(userProfile).values(defaultProfile);
-        setProfile(defaultProfile);
+        await db.insert(userProfile).values(defaultProfile).onConflictDoNothing();
+        // Re-fetch after insert attempt
+        const [created] = await db
+          .select()
+          .from(userProfile)
+          .where(eq(userProfile.id, PROFILE_ID))
+          .limit(1);
+        setProfile((created as UserProfile) || defaultProfile);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);

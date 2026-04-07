@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { setStatusBarStyle } from "expo-status-bar";
 import {
   View,
   Text,
@@ -9,13 +10,13 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Avatar, Input, Button } from "@/components/ui";
 import { useProfile } from "@/hooks/useProfile";
-import { pickPhoto } from "@/services/photo.service";
-import { exportBackup } from "@/services/backup.service";
+import { pickPhoto, takePhoto } from "@/services/photo.service";
+// backup service available but sync via Supabase is primary backup
 import {
   savePin,
   verifyPin,
@@ -37,7 +38,6 @@ type PinStep = "verify" | "new" | "confirm";
 
 /* ═══════════════════════ Main Screen ═══════════════════════ */
 export default function SettingsScreen() {
-  const router = useRouter();
   const { profile, loading, updateProfile, refresh } = useProfile();
 
   // Edit mode
@@ -57,12 +57,11 @@ export default function SettingsScreen() {
   // Biometric
   const [biometricAvailable, setBiometricAvailable] = useState(false);
 
-  // Backup
-  const [exporting, setExporting] = useState(false);
 
   // Load state on focus
   useFocusEffect(
     useCallback(() => {
+      setStatusBarStyle("dark");
       refresh();
       hasPin().then(setHasPinSet);
       isBiometricAvailable().then(setBiometricAvailable);
@@ -70,8 +69,16 @@ export default function SettingsScreen() {
   );
 
   // ── Profile photo ──
-  const handleChangePhoto = async () => {
-    const uri = await pickPhoto();
+  const handleChangePhoto = () => {
+    Alert.alert("Foto de perfil", "¿De dónde quieres agregar?", [
+      { text: "Cámara", onPress: () => saveProfilePhoto("camera") },
+      { text: "Galería", onPress: () => saveProfilePhoto("gallery") },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  };
+
+  const saveProfilePhoto = async (mode: "camera" | "gallery") => {
+    const uri = mode === "camera" ? await takePhoto() : await pickPhoto();
     if (!uri) return;
 
     // Copy to permanent location
@@ -157,21 +164,6 @@ export default function SettingsScreen() {
       setHasPinSet(true);
       setShowPinChange(false);
       Alert.alert("PIN actualizado", "Tu nuevo PIN se guardó correctamente");
-    }
-  };
-
-  // ── Backup ──
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const success = await exportBackup();
-      if (!success) {
-        Alert.alert("Error", "No se pudo exportar el respaldo");
-      }
-    } catch {
-      Alert.alert("Error", "Ocurrió un error al exportar");
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -384,59 +376,24 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* ── Herramientas section ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Herramientas</Text>
-          <View style={styles.card}>
-            <Pressable
-              onPress={() => router.push("/inspiration")}
-              style={styles.settingsRow}
-            >
-              <View style={styles.settingsRowLeft}>
-                <Ionicons
-                  name="images-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.settingsLabel}>
-                  Catálogo de inspiración
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={colors.textSecondary}
-              />
-            </Pressable>
-          </View>
-        </View>
-
         {/* ── Data section ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Datos</Text>
           <View style={styles.card}>
-            <Pressable onPress={handleExport} style={styles.settingsRow}>
+            <View style={styles.settingsRow}>
               <View style={styles.settingsRowLeft}>
                 <Ionicons
-                  name="download-outline"
+                  name="cloud-done-outline"
                   size={20}
-                  color={colors.primary}
+                  color={colors.success}
                 />
-                <Text style={styles.settingsLabel}>Exportar respaldo</Text>
+                <Text style={styles.settingsLabel}>Sincronización</Text>
               </View>
-              {exporting ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : (
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              )}
-            </Pressable>
+              <Text style={styles.syncStatusText}>Automática</Text>
+            </View>
           </View>
           <Text style={styles.sectionHint}>
-            Genera un archivo JSON con todos tus datos
+            Tus datos se sincronizan automáticamente con la nube
           </Text>
         </View>
 
@@ -571,6 +528,11 @@ const styles = StyleSheet.create({
   settingsLabel: {
     color: colors.text,
     fontSize: 15,
+  },
+  syncStatusText: {
+    color: colors.success,
+    fontSize: 13,
+    fontWeight: "500",
   },
 
   // PIN

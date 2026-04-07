@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { View, Animated, StyleSheet, Text, Dimensions } from "react-native";
+import { StatusBar } from "expo-status-bar";
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 import { useRouter } from "expo-router";
@@ -211,6 +212,7 @@ export default function SplashScreen() {
           </MaskedView>
         </View>
       </Animated.View>
+      <StatusBar style="light" />
     </View>
   );
 }

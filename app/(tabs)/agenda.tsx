@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { setStatusBarStyle } from "expo-status-bar";
 import {
   View,
   Text,
@@ -80,6 +81,7 @@ export default function AgendaScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setStatusBarStyle("dark");
       refreshAppointments();
       refreshFollowUps();
     }, [])
