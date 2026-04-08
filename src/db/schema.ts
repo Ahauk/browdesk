@@ -86,9 +86,8 @@ export const appointments = sqliteTable("appointments", {
 
 export const followUps = sqliteTable("follow_ups", {
   id: text("id").primaryKey(),
-  procedureId: text("procedure_id")
-    .notNull()
-    .references(() => procedures.id),
+  procedureId: text("procedure_id").references(() => procedures.id),
+  appointmentId: text("appointment_id").references(() => appointments.id),
   clientId: text("client_id")
     .notNull()
     .references(() => clients.id),

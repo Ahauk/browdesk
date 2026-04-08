@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs, { Dayjs } from "dayjs";
@@ -23,6 +23,14 @@ export function MiniCalendar({
   const [viewMonth, setViewMonth] = useState(() =>
     dayjs(selectedDate).startOf("month")
   );
+
+  // Sync viewMonth when selectedDate changes to a different month (e.g. "Hoy" button)
+  useEffect(() => {
+    const selectedMonth = dayjs(selectedDate).startOf("month");
+    if (!selectedMonth.isSame(viewMonth, "month")) {
+      setViewMonth(selectedMonth);
+    }
+  }, [selectedDate]);
 
   const today = dayjs().format("YYYY-MM-DD");
 

@@ -102,7 +102,8 @@ export interface Appointment {
 
 export interface FollowUp {
   id: string;
-  procedureId: string;
+  procedureId?: string;
+  appointmentId?: string;
   clientId: string;
   dueDate: string;
   status: FollowUpStatus;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { setStatusBarStyle } from "expo-status-bar";
 import {
   View,
@@ -6,9 +6,11 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  Animated,
   StyleSheet,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { Swipeable } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Avatar, Badge } from "@/components/ui";
@@ -38,6 +40,160 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: colors.textSecondary,
 };
 
+/* ───────────────── Appointment Row with swipe-to-delete ───────────────── */
+function AppointmentRow({
+  apt,
+  client,
+  isScheduled,
+  isLast,
+  clientName,
+  typeLabel,
+  onComplete,
+  onCancel,
+  onDelete,
+}: {
+  apt: Appointment;
+  client?: Client;
+  isScheduled: boolean;
+  isLast: boolean;
+  clientName: string;
+  typeLabel: string;
+  onComplete: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const swipeableRef = useRef<Swipeable>(null);
+
+  const renderRightActions = (
+    _progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>
+  ) => {
+    const scale = dragX.interpolate({
+      inputRange: [-80, 0],
+      outputRange: [1, 0.5],
+      extrapolate: "clamp",
+    });
+    return (
+      <Pressable
+        onPress={() => {
+          swipeableRef.current?.close();
+          onDelete();
+        }}
+        style={styles.deleteAction}
+      >
+        <Animated.View
+          style={[styles.deleteContent, { transform: [{ scale }] }]}
+        >
+          <Ionicons name="trash-outline" size={22} color={colors.white} />
+          <Text style={styles.deleteText}>Eliminar</Text>
+        </Animated.View>
+      </Pressable>
+    );
+  };
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+    >
+      <View style={styles.aptRowOuter}>
+        <View style={styles.aptRow}>
+          {/* Time */}
+          <View style={styles.aptTimeCol}>
+            <Text
+              style={[
+                styles.aptTimeStart,
+                !isScheduled && styles.aptTimeDone,
+              ]}
+            >
+              {formatTime(apt.time)}
+            </Text>
+            {apt.endTime && (
+              <>
+                <Text style={styles.aptTimeSep}>a</Text>
+                <Text
+                  style={[
+                    styles.aptTimeEnd,
+                    !isScheduled && styles.aptTimeDone,
+                  ]}
+                >
+                  {formatTime(apt.endTime)}
+                </Text>
+              </>
+            )}
+          </View>
+
+          {/* Avatar */}
+          <Avatar
+            firstName={client?.firstName || "?"}
+            lastName={client?.lastName || ""}
+            size="sm"
+          />
+
+          {/* Name + type */}
+          <View style={styles.aptInfo}>
+            <Text
+              style={[styles.aptName, !isScheduled && styles.aptNameDone]}
+              numberOfLines={1}
+            >
+              {clientName}
+            </Text>
+            <Text style={styles.aptType} numberOfLines={1}>
+              {typeLabel}
+              {apt.notes ? ` · ${apt.notes}` : ""}
+            </Text>
+          </View>
+
+          {/* Actions (right side) */}
+          {isScheduled ? (
+            <View style={styles.aptActions}>
+              <Pressable
+                onPress={onComplete}
+                style={styles.actionBtn}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={24}
+                  color={colors.success}
+                />
+              </Pressable>
+              <Pressable
+                onPress={onCancel}
+                style={styles.actionBtn}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="close-circle-outline"
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.aptStatusBadge}>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor:
+                      STATUS_COLORS[apt.status] || colors.textSecondary,
+                  },
+                ]}
+              />
+              <Text style={styles.aptStatusText}>
+                {STATUS_LABELS[apt.status] || apt.status}
+              </Text>
+            </View>
+          )}
+        </View>
+        {!isLast && <View style={styles.aptDivider} />}
+      </View>
+    </Swipeable>
+  );
+}
+
 /* ═══════════════════════ Main Screen ═══════════════════════ */
 export default function AgendaScreen() {
   const router = useRouter();
@@ -47,8 +203,12 @@ export default function AgendaScreen() {
     updateAppointmentStatus,
     deleteAppointment,
   } = useAppointments();
-  const { pendingFollowUps, markCompleted, refresh: refreshFollowUps } =
-    useFollowUps();
+  const {
+    pendingFollowUps,
+    markCompleted,
+    createFollowUp,
+    refresh: refreshFollowUps,
+  } = useFollowUps();
   const { getClient } = useClients();
 
   const [selectedDate, setSelectedDate] = useState(
@@ -130,9 +290,54 @@ export default function AgendaScreen() {
       { text: "Cancelar", style: "cancel" },
       {
         text: "Completar",
-        onPress: () => updateAppointmentStatus(apt.id, "completed"),
+        onPress: async () => {
+          const ok = await updateAppointmentStatus(apt.id, "completed");
+          if (!ok) return;
+          // Ask about follow-up
+          const clientName = getClientName(apt.clientId);
+          const typeLabel = getTypeLabels(apt);
+          Alert.alert(
+            "Programar seguimiento",
+            `¿Agendar seguimiento para ${clientName}?`,
+            [
+              { text: "No", style: "cancel" },
+              {
+                text: "1 mes",
+                onPress: () =>
+                  createFollowUpFromApt(apt, 1, clientName, typeLabel),
+              },
+              {
+                text: "2 meses",
+                onPress: () =>
+                  createFollowUpFromApt(apt, 2, clientName, typeLabel),
+              },
+              {
+                text: "3 meses",
+                onPress: () =>
+                  createFollowUpFromApt(apt, 3, clientName, typeLabel),
+              },
+            ]
+          );
+        },
       },
     ]);
+  };
+
+  const createFollowUpFromApt = async (
+    apt: Appointment,
+    months: number,
+    clientName: string,
+    typeLabel: string
+  ) => {
+    const dueDate = dayjs(apt.date).add(months, "month").format("YYYY-MM-DD");
+    await createFollowUp({
+      clientId: apt.clientId,
+      appointmentId: apt.id,
+      dueDate,
+      status: "pending",
+      notes: `Seguimiento ${typeLabel} — ${clientName}`,
+    });
+    refreshFollowUps();
   };
 
   const handleCancel = (apt: Appointment) => {
@@ -204,14 +409,27 @@ export default function AgendaScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Agenda</Text>
-        <Pressable
-          onPress={() => {
-            setSelectedDate(dayjs().format("YYYY-MM-DD"));
-          }}
-          style={styles.todayBtn}
-        >
-          <Text style={styles.todayBtnText}>Hoy</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push("/reminders")}
+            style={styles.reminderBtn}
+            hitSlop={8}
+          >
+            <Ionicons
+              name="chatbubbles-outline"
+              size={18}
+              color={colors.primary}
+            />
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setSelectedDate(dayjs().format("YYYY-MM-DD"));
+            }}
+            style={styles.todayBtn}
+          >
+            <Text style={styles.todayBtnText}>Hoy</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -277,108 +495,18 @@ export default function AgendaScreen() {
                 const client = clientMap[apt.clientId];
                 const isScheduled = apt.status === "scheduled";
                 return (
-                  <View key={apt.id}>
-                    <View style={styles.aptRow}>
-                      {/* Time */}
-                      <View style={styles.aptTimeCol}>
-                        <Text style={[styles.aptTimeStart, !isScheduled && styles.aptTimeDone]}>
-                          {formatTime(apt.time)}
-                        </Text>
-                        {apt.endTime && (
-                          <>
-                            <Text style={styles.aptTimeSep}>a</Text>
-                            <Text style={[styles.aptTimeEnd, !isScheduled && styles.aptTimeDone]}>
-                              {formatTime(apt.endTime)}
-                            </Text>
-                          </>
-                        )}
-                      </View>
-
-                      {/* Info */}
-                      <View style={styles.aptInfo}>
-                        <View style={styles.aptInfoTop}>
-                          <Avatar
-                            firstName={client?.firstName || "?"}
-                            lastName={client?.lastName || ""}
-                            size="sm"
-                          />
-                          <View style={{ flex: 1 }}>
-                            <Text
-                              style={[
-                                styles.aptName,
-                                !isScheduled && styles.aptNameDone,
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {getClientName(apt.clientId)}
-                            </Text>
-                            <Text style={styles.aptType}>
-                              {getTypeLabels(apt)}
-                              {apt.notes ? ` · ${apt.notes}` : ""}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {/* Actions */}
-                        {isScheduled ? (
-                          <View style={styles.aptActions}>
-                            <Pressable
-                              onPress={() => handleComplete(apt)}
-                              style={styles.actionBtn}
-                              hitSlop={8}
-                            >
-                              <Ionicons
-                                name="checkmark-circle-outline"
-                                size={22}
-                                color={colors.success}
-                              />
-                            </Pressable>
-                            <Pressable
-                              onPress={() => handleCancel(apt)}
-                              style={styles.actionBtn}
-                              hitSlop={8}
-                            >
-                              <Ionicons
-                                name="close-circle-outline"
-                                size={22}
-                                color={colors.textSecondary}
-                              />
-                            </Pressable>
-                            <Pressable
-                              onPress={() => handleDelete(apt)}
-                              style={styles.actionBtn}
-                              hitSlop={8}
-                            >
-                              <Ionicons
-                                name="trash-outline"
-                                size={20}
-                                color={colors.danger}
-                              />
-                            </Pressable>
-                          </View>
-                        ) : (
-                          <View style={styles.aptStatusBadge}>
-                            <View
-                              style={[
-                                styles.statusDot,
-                                {
-                                  backgroundColor:
-                                    STATUS_COLORS[apt.status] ||
-                                    colors.textSecondary,
-                                },
-                              ]}
-                            />
-                            <Text style={styles.aptStatusText}>
-                              {STATUS_LABELS[apt.status] || apt.status}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                    {index < dayAppointments.length - 1 && (
-                      <View style={styles.aptDivider} />
-                    )}
-                  </View>
+                  <AppointmentRow
+                    key={apt.id}
+                    apt={apt}
+                    client={client}
+                    isScheduled={isScheduled}
+                    isLast={index === dayAppointments.length - 1}
+                    clientName={getClientName(apt.clientId)}
+                    typeLabel={getTypeLabels(apt)}
+                    onComplete={() => handleComplete(apt)}
+                    onCancel={() => handleCancel(apt)}
+                    onDelete={() => handleDelete(apt)}
+                  />
                 );
               })}
             </View>
@@ -487,6 +615,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  reminderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   todayBtn: {
     paddingHorizontal: 14,
     paddingVertical: 6,
@@ -574,8 +715,7 @@ const styles = StyleSheet.create({
   appointmentsCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 4,
+    overflow: "hidden",
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -584,13 +724,14 @@ const styles = StyleSheet.create({
   },
   aptRow: {
     flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
+    paddingHorizontal: spacing.md,
     gap: 12,
   },
   aptTimeCol: {
-    width: 64,
+    width: 62,
     alignItems: "center",
-    justifyContent: "center",
   },
   aptTimeStart: {
     fontSize: 13,
@@ -613,12 +754,6 @@ const styles = StyleSheet.create({
   },
   aptInfo: {
     flex: 1,
-    gap: 8,
-  },
-  aptInfoTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
   },
   aptName: {
     fontSize: 14,
@@ -636,10 +771,11 @@ const styles = StyleSheet.create({
   },
   aptActions: {
     flexDirection: "row",
-    gap: 16,
+    alignItems: "center",
+    gap: 12,
   },
   actionBtn: {
-    padding: 2,
+    padding: 4,
   },
   aptStatusBadge: {
     flexDirection: "row",
@@ -656,9 +792,30 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: "500",
   },
+  aptRowOuter: {
+    backgroundColor: colors.surface,
+  },
   aptDivider: {
     height: 1,
     backgroundColor: colors.divider,
+  },
+
+  // Swipe delete
+  deleteAction: {
+    backgroundColor: colors.danger,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+  },
+  deleteContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  deleteText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: "600",
   },
 
   // Follow-ups

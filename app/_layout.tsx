@@ -5,6 +5,11 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initializeDatabase } from "@/db/client";
 import { runSupabaseMigrations } from "@/services/supabase-migrations";
+import { scheduleDailyReminderNotification } from "@/services/notification.service";
+import { db } from "@/db/client";
+import { appointments } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import dayjs from "dayjs";
 import { useAppStore } from "@/stores/app.store";
 import { colors } from "@/theme";
 
@@ -18,6 +23,22 @@ export default function RootLayout() {
         setDbReady(true);
         // Run Supabase migrations in background (non-blocking)
         runSupabaseMigrations().catch(() => {});
+        // Schedule daily 10am notification for tomorrow's appointments
+        try {
+          const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
+          const result = await db
+            .select()
+            .from(appointments)
+            .where(
+              and(
+                eq(appointments.date, tomorrow),
+                eq(appointments.status, "scheduled")
+              )
+            );
+          scheduleDailyReminderNotification(result.length).catch(() => {});
+        } catch {
+          // Non-blocking
+        }
       } catch (error) {
         console.error("Failed to initialize database:", error);
       }
@@ -85,6 +106,13 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="inspiration/index"
+          options={{
+            animation: "slide_from_right",
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
+        <Stack.Screen
+          name="reminders"
           options={{
             animation: "slide_from_right",
             contentStyle: { backgroundColor: colors.bg },

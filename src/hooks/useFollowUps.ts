@@ -37,7 +37,10 @@ export function useFollowUps(clientId?: string) {
 
   const createFollowUp = useCallback(
     async (
-      input: Omit<FollowUp, "id" | "createdAt" | "updatedAt" | "syncedAt">
+      input: Omit<FollowUp, "id" | "createdAt" | "updatedAt" | "syncedAt"> & {
+        procedureId?: string;
+        appointmentId?: string;
+      }
     ): Promise<FollowUp | null> => {
       try {
         const now = new Date().toISOString();

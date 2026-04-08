@@ -147,6 +147,10 @@ export default function NewAppointmentScreen() {
       Alert.alert("Error", "Selecciona una hora");
       return;
     }
+    if (selectedTypes.size === 0) {
+      Alert.alert("Error", "Selecciona al menos un procedimiento");
+      return;
+    }
 
     // Conflict check
     if (isTimeConflicting(selectedTime)) {
@@ -450,7 +454,7 @@ export default function NewAppointmentScreen() {
 
           {/* ── Procedimientos ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
-            Procedimientos
+            Procedimientos *
           </Text>
           <View style={styles.typeRow}>
             {PROCEDURE_TYPES.map((type) => {
@@ -504,7 +508,7 @@ export default function NewAppointmentScreen() {
             title="Agendar cita"
             onPress={handleSave}
             loading={saving}
-            disabled={(!selectedClient && !isProspect) || (isProspect && (!prospectFirstName.trim() || !prospectLastName.trim() || !prospectPhone.trim())) || !selectedTime}
+            disabled={(!selectedClient && !isProspect) || (isProspect && (!prospectFirstName.trim() || !prospectLastName.trim() || !prospectPhone.trim())) || !selectedTime || selectedTypes.size === 0}
           />
         </View>
       </KeyboardAvoidingView>

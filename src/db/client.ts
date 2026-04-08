@@ -84,7 +84,8 @@ export async function initializeDatabase(): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS follow_ups (
       id TEXT PRIMARY KEY,
-      procedure_id TEXT NOT NULL REFERENCES procedures(id),
+      procedure_id TEXT REFERENCES procedures(id),
+      appointment_id TEXT REFERENCES appointments(id),
       client_id TEXT NOT NULL REFERENCES clients(id),
       due_date TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
@@ -147,6 +148,37 @@ export async function initializeDatabase(): Promise<void> {
     } catch {
       // Column already exists
     }
+  }
+
+  // Rebuild follow_ups table: make procedure_id nullable, add appointment_id
+  try {
+    expoDb.execSync(`ALTER TABLE follow_ups ADD COLUMN appointment_id TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    // Rebuild to remove NOT NULL from procedure_id (SQLite limitation)
+    expoDb.execSync(`
+      CREATE TABLE IF NOT EXISTS follow_ups_new (
+        id TEXT PRIMARY KEY,
+        procedure_id TEXT REFERENCES procedures(id),
+        appointment_id TEXT REFERENCES appointments(id),
+        client_id TEXT NOT NULL REFERENCES clients(id),
+        due_date TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        synced_at TEXT
+      );
+      INSERT OR IGNORE INTO follow_ups_new
+        SELECT id, procedure_id, appointment_id, client_id, due_date, status, notes, created_at, updated_at, synced_at
+        FROM follow_ups;
+      DROP TABLE follow_ups;
+      ALTER TABLE follow_ups_new RENAME TO follow_ups;
+    `);
+  } catch {
+    // Migration already applied or table already correct
   }
 
   const newProcColumns = [
