@@ -193,18 +193,28 @@ export default function NewAppointmentScreen() {
       }
 
       const typesArray = Array.from(selectedTypes);
-      const result = await createAppointment({
-        clientId,
-        procedureType: (typesArray[0] as ProcedureType) || undefined,
-        procedureTypes:
-          typesArray.length > 0 ? JSON.stringify(typesArray) : undefined,
-        date: selectedDate,
-        time: selectedTime,
-        endTime,
-        duration,
-        notes: notes.trim() || undefined,
-        status: "scheduled",
-      });
+      const clientName = isProspect
+        ? fullName(prospectFirstName.trim(), prospectLastName.trim())
+        : fullName(selectedClient!.firstName, selectedClient!.lastName);
+      const procedureLabels = typesArray
+        .map((t) => PROCEDURE_TYPES.find((pt) => pt.key === t)?.label || t)
+        .join(", ");
+
+      const result = await createAppointment(
+        {
+          clientId,
+          procedureType: (typesArray[0] as ProcedureType) || undefined,
+          procedureTypes:
+            typesArray.length > 0 ? JSON.stringify(typesArray) : undefined,
+          date: selectedDate,
+          time: selectedTime,
+          endTime,
+          duration,
+          notes: notes.trim() || undefined,
+          status: "scheduled",
+        },
+        { clientName, procedureLabels }
+      );
 
       if (result) {
         Alert.alert("Cita creada", "La cita se agendó exitosamente", [

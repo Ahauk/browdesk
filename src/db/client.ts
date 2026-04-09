@@ -181,6 +181,19 @@ export async function initializeDatabase(): Promise<void> {
     // Migration already applied or table already correct
   }
 
+  // Calendar sync columns
+  const calendarColumns = [
+    { table: "appointments", col: "calendar_event_id TEXT" },
+    { table: "user_profile", col: "calendar_sync_enabled INTEGER NOT NULL DEFAULT 0" },
+  ];
+  for (const { table, col } of calendarColumns) {
+    try {
+      expoDb.execSync(`ALTER TABLE ${table} ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists
+    }
+  }
+
   const newProcColumns = [
     "zone_details TEXT",
     "guarantee INTEGER",

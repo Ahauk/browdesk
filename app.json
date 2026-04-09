@@ -17,7 +17,8 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "Usa Face ID para desbloquear la aplicacion",
         "NSPhotoLibraryUsageDescription": "Accede a tus fotos para guardar imagenes de procedimientos",
-        "NSCameraUsageDescription": "Toma fotos de antes y despues de los procedimientos"
+        "NSCameraUsageDescription": "Toma fotos de antes y despues de los procedimientos",
+        "NSCalendarsFullAccessUsageDescription": "BrowDesk necesita acceso al calendario para sincronizar tus citas"
       }
     },
     "android": {
@@ -49,6 +50,12 @@
         {
           "photosPermission": "Accede a tus fotos para guardar imagenes de procedimientos",
           "cameraPermission": "Toma fotos de antes y despues de los procedimientos"
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "BrowDesk necesita acceso al calendario para sincronizar tus citas"
         }
       ]
     ]

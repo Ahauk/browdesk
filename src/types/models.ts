@@ -94,6 +94,7 @@ export interface Appointment {
   endTime?: string; // HH:mm
   duration?: number; // minutes
   notes?: string;
+  calendarEventId?: string;
   status: AppointmentStatus;
   createdAt: string;
   updatedAt: string;
@@ -129,6 +130,7 @@ export interface UserProfile {
   email?: string;
   avatarUri?: string;
   biometricEnabled: boolean;
+  calendarSyncEnabled: boolean;
   pinHash?: string;
   createdAt: string;
   updatedAt: string;

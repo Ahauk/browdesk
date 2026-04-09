@@ -49,6 +49,10 @@ const MIGRATIONS: string[] = [
   // ── 2026-04-08: Follow-ups: nullable procedure_id, add appointment_id ──
   `ALTER TABLE follow_ups ADD COLUMN IF NOT EXISTS appointment_id TEXT REFERENCES appointments(id)`,
   `ALTER TABLE follow_ups ALTER COLUMN procedure_id DROP NOT NULL`,
+
+  // ── 2026-04-08: Calendar sync ──
+  `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS calendar_event_id TEXT`,
+  `ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS calendar_sync_enabled INTEGER NOT NULL DEFAULT 0`,
 ];
 
 /**

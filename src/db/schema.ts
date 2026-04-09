@@ -78,6 +78,7 @@ export const appointments = sqliteTable("appointments", {
   endTime: text("end_time"), // HH:mm calculated from time + duration
   duration: integer("duration"), // minutes
   notes: text("notes"),
+  calendarEventId: text("calendar_event_id"),
   status: text("status").notNull().default("scheduled"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -115,6 +116,9 @@ export const userProfile = sqliteTable("user_profile", {
   biometricEnabled: integer("biometric_enabled", { mode: "boolean" })
     .notNull()
     .default(true),
+  calendarSyncEnabled: integer("calendar_sync_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
   pinHash: text("pin_hash"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),

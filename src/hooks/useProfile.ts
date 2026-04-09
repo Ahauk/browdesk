@@ -28,6 +28,7 @@ export function useProfile() {
           id: PROFILE_ID,
           name: "Carolina Vazquez",
           biometricEnabled: true,
+          calendarSyncEnabled: false,
           createdAt: now,
           updatedAt: now,
         };

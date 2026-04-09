@@ -1,14 +1,37 @@
 import { useState, useEffect, useCallback } from "react";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "expo-crypto";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { db } from "@/db/client";
-import { appointments } from "@/db/schema";
+import { appointments, userProfile } from "@/db/schema";
 import { scheduleAppointmentReminder } from "@/services/notification.service";
+import {
+  createCalendarEvent,
+  deleteCalendarEvent,
+  getOrCreateBrowDeskCalendar,
+  hasCalendarPermissions,
+} from "@/services/calendar.service";
 import type { Appointment } from "@/types/models";
 
 dayjs.extend(customParseFormat);
+
+async function isCalendarSyncEnabled(): Promise<boolean> {
+  try {
+    const result = await db
+      .select({ enabled: userProfile.calendarSyncEnabled })
+      .from(userProfile)
+      .limit(1);
+    return result[0]?.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+export interface AppointmentMeta {
+  clientName?: string;
+  procedureLabels?: string;
+}
 
 export function useAppointments() {
   const [data, setData] = useState<Appointment[]>([]);
@@ -52,7 +75,8 @@ export function useAppointments() {
 
   const createAppointment = useCallback(
     async (
-      input: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "syncedAt">
+      input: Omit<Appointment, "id" | "createdAt" | "updatedAt" | "syncedAt">,
+      meta?: AppointmentMeta
     ): Promise<Appointment | null> => {
       try {
         const now = new Date().toISOString();
@@ -77,6 +101,37 @@ export function useAppointments() {
           }
         } catch {
           // Notification failure shouldn't block appointment creation
+        }
+
+        // Sync to device calendar
+        try {
+          if (
+            meta?.clientName &&
+            (await isCalendarSyncEnabled()) &&
+            (await hasCalendarPermissions())
+          ) {
+            const calendarId = await getOrCreateBrowDeskCalendar();
+            if (calendarId) {
+              const eventId = await createCalendarEvent(calendarId, {
+                clientName: meta.clientName,
+                procedureTypes: meta.procedureLabels || "Cita",
+                date: input.date,
+                time: input.time,
+                endTime: input.endTime,
+                duration: input.duration,
+                notes: input.notes,
+              });
+              if (eventId) {
+                await db
+                  .update(appointments)
+                  .set({ calendarEventId: eventId })
+                  .where(eq(appointments.id, newAppointment.id));
+                newAppointment.calendarEventId = eventId;
+              }
+            }
+          }
+        } catch {
+          // Calendar sync failure shouldn't block appointment creation
         }
 
         await fetchAppointments();
@@ -113,6 +168,24 @@ export function useAppointments() {
   const updateAppointmentStatus = useCallback(
     async (id: string, status: Appointment["status"]): Promise<boolean> => {
       try {
+        // Delete calendar event for cancelled appointments
+        if (status === "cancelled") {
+          try {
+            if (await isCalendarSyncEnabled()) {
+              const [apt] = await db
+                .select({ calendarEventId: appointments.calendarEventId })
+                .from(appointments)
+                .where(eq(appointments.id, id))
+                .limit(1);
+              if (apt?.calendarEventId) {
+                await deleteCalendarEvent(apt.calendarEventId);
+              }
+            }
+          } catch {
+            // Non-blocking
+          }
+        }
+
         const now = new Date().toISOString();
         await db
           .update(appointments)
@@ -131,6 +204,22 @@ export function useAppointments() {
   const deleteAppointment = useCallback(
     async (id: string): Promise<boolean> => {
       try {
+        // Delete calendar event first
+        try {
+          if (await isCalendarSyncEnabled()) {
+            const [apt] = await db
+              .select({ calendarEventId: appointments.calendarEventId })
+              .from(appointments)
+              .where(eq(appointments.id, id))
+              .limit(1);
+            if (apt?.calendarEventId) {
+              await deleteCalendarEvent(apt.calendarEventId);
+            }
+          }
+        } catch {
+          // Non-blocking
+        }
+
         await db.delete(appointments).where(eq(appointments.id, id));
         await fetchAppointments();
         return true;

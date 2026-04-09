@@ -24,6 +24,10 @@ import {
   isBiometricAvailable,
 } from "@/services/auth.service";
 import { requestNotificationPermissions } from "@/services/notification.service";
+import {
+  requestCalendarPermissions,
+  getOrCreateBrowDeskCalendar,
+} from "@/services/calendar.service";
 import { colors, spacing, radius } from "@/theme";
 import {
   documentDirectory,
@@ -164,6 +168,28 @@ export default function SettingsScreen() {
       setHasPinSet(true);
       setShowPinChange(false);
       Alert.alert("PIN actualizado", "Tu nuevo PIN se guardó correctamente");
+    }
+  };
+
+  // ── Calendar sync toggle ──
+  const handleCalendarToggle = async (value: boolean) => {
+    if (value) {
+      const granted = await requestCalendarPermissions();
+      if (!granted) {
+        Alert.alert(
+          "Permiso denegado",
+          "Puedes activar el acceso al calendario desde Configuración del sistema"
+        );
+        return;
+      }
+      const calendarId = await getOrCreateBrowDeskCalendar();
+      if (!calendarId) {
+        Alert.alert("Error", "No se pudo crear el calendario BrowDesk");
+        return;
+      }
+      await updateProfile({ calendarSyncEnabled: true });
+    } else {
+      await updateProfile({ calendarSyncEnabled: false });
     }
   };
 
@@ -374,6 +400,34 @@ export default function SettingsScreen() {
               />
             </Pressable>
           </View>
+        </View>
+
+        {/* ── Calendar section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Calendario</Text>
+          <View style={styles.card}>
+            <View style={styles.settingsRow}>
+              <View style={styles.settingsRowLeft}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.settingsLabel}>
+                  Sincronizar con Calendario
+                </Text>
+              </View>
+              <Switch
+                value={profile.calendarSyncEnabled}
+                onValueChange={handleCalendarToggle}
+                trackColor={{ false: colors.divider, true: colors.accent }}
+                thumbColor={colors.white}
+              />
+            </View>
+          </View>
+          <Text style={styles.sectionHint}>
+            Las citas se agregarán al calendario "BrowDesk" del dispositivo
+          </Text>
         </View>
 
         {/* ── Data section ── */}
