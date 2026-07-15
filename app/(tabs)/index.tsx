@@ -18,7 +18,9 @@ import { useAppointments } from "@/hooks/useAppointments";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { useProcedures } from "@/hooks/useProcedures";
 import { useSync } from "@/hooks/useSync";
+import { useProfile } from "@/hooks/useProfile";
 import { fullName, formatDate } from "@/utils/format";
+import { brandName, greeting } from "@/utils/branding";
 import { PROCEDURE_TYPES } from "@/constants";
 import { colors, spacing, radius } from "@/theme";
 
@@ -128,6 +130,7 @@ export default function HomeScreen() {
   const { pendingCount, refresh: refreshFollowUps } = useFollowUps();
   const { getRecentProcedures } = useProcedures();
   const { sync } = useSync();
+  const { profile } = useProfile();
 
   const [recentVisits, setRecentVisits] = useState<
     {
@@ -191,8 +194,8 @@ export default function HomeScreen() {
       <View style={styles.headerBg}>
         <SafeAreaView edges={["top"]}>
           <View style={styles.headerContent}>
-            <SparkleText text="Carolina Vazquez Studio" fontSize={13} />
-            <Text style={styles.greeting}>Hola, Carolina</Text>
+            <SparkleText text={brandName(profile)} fontSize={13} />
+            <Text style={styles.greeting}>{greeting(profile)}</Text>
           </View>
         </SafeAreaView>
       </View>

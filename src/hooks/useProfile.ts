@@ -19,28 +19,9 @@ export function useProfile() {
         .where(eq(userProfile.id, PROFILE_ID))
         .limit(1);
 
-      if (result) {
-        setProfile(result as UserProfile);
-      } else {
-        // Create default profile (ignore if already exists)
-        const now = new Date().toISOString();
-        const defaultProfile: UserProfile = {
-          id: PROFILE_ID,
-          name: "Carolina Vazquez",
-          biometricEnabled: true,
-          calendarSyncEnabled: false,
-          createdAt: now,
-          updatedAt: now,
-        };
-        await db.insert(userProfile).values(defaultProfile).onConflictDoNothing();
-        // Re-fetch after insert attempt
-        const [created] = await db
-          .select()
-          .from(userProfile)
-          .where(eq(userProfile.id, PROFILE_ID))
-          .limit(1);
-        setProfile((created as UserProfile) || defaultProfile);
-      }
+      // The profile row is created during onboarding, not here. If it doesn't
+      // exist yet, expose null and let callers fall back to the app brand.
+      setProfile(result ? (result as UserProfile) : null);
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {

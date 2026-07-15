@@ -4,25 +4,34 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initializeDatabase } from "@/db/client";
-import { runSupabaseMigrations } from "@/services/supabase-migrations";
 import { scheduleDailyReminderNotification } from "@/services/notification.service";
 import { db } from "@/db/client";
 import { appointments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import dayjs from "dayjs";
 import { useAppStore } from "@/stores/app.store";
+import { useAuthStore } from "@/stores/auth.store";
+import { onAuthStateChange } from "@/services/session.service";
 import { colors } from "@/theme";
 
 export default function RootLayout() {
   const { isDbReady, setDbReady } = useAppStore();
+  const { setCloudSession, setCloudReady } = useAuthStore();
+
+  // Keep the cloud session in the store in sync with Supabase auth events.
+  useEffect(() => {
+    const unsubscribe = onAuthStateChange((session) => {
+      setCloudSession(session);
+      setCloudReady(true);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     async function init() {
       try {
         await initializeDatabase();
         setDbReady(true);
-        // Run Supabase migrations in background (non-blocking)
-        runSupabaseMigrations().catch(() => {});
         // Schedule daily 10am notification for tomorrow's appointments
         try {
           const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
@@ -72,6 +81,14 @@ export default function RootLayout() {
           options={{ contentStyle: { backgroundColor: colors.brand.black } }}
         />
         <Stack.Screen
+          name="auth/index"
+          options={{ contentStyle: { backgroundColor: colors.splash.black } }}
+        />
+        <Stack.Screen
+          name="onboarding/index"
+          options={{ contentStyle: { backgroundColor: colors.splash.black } }}
+        />
+        <Stack.Screen
           name="(tabs)"
           options={{ contentStyle: { backgroundColor: colors.brand.ivory } }}
         />
@@ -106,6 +123,13 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="inspiration/index"
+          options={{
+            animation: "slide_from_right",
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
+        <Stack.Screen
+          name="services/index"
           options={{
             animation: "slide_from_right",
             contentStyle: { backgroundColor: colors.bg },

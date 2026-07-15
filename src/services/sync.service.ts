@@ -6,8 +6,10 @@ import {
   photos,
   appointments,
   followUps,
+  services,
+  serviceCategories,
 } from "@/db/schema";
-import { supabase, isSupabaseConfigured } from "./supabase";
+import { supabase, isSupabaseConfigured, getCurrentUserId } from "./supabase";
 
 type SyncResult = {
   success: boolean;
@@ -38,7 +40,8 @@ function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
 
 async function syncTable(
   localTable: typeof clients | typeof procedures | typeof appointments | typeof followUps,
-  remoteTableName: string
+  remoteTableName: string,
+  userId: string
 ): Promise<{ synced: number; errors: number }> {
   let synced = 0;
   let errors = 0;
@@ -51,6 +54,8 @@ async function syncTable(
   for (const record of unsynced) {
     try {
       const snakeRecord = toSnakeCase(record as Record<string, unknown>);
+      // Stamp the owning account so the row passes RLS (user_id = auth.uid()).
+      snakeRecord.user_id = userId;
       const { error } = await supabase
         .from(remoteTableName)
         .upsert(snakeRecord, { onConflict: "id" });
@@ -82,6 +87,12 @@ export async function syncAll(): Promise<SyncResult> {
     return { success: false, synced: 0, errors: 0 };
   }
 
+  // No cloud session → nothing to sync (and RLS would reject it anyway).
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return { success: false, synced: 0, errors: 0 };
+  }
+
   let totalSynced = 0;
   let totalErrors = 0;
 
@@ -90,10 +101,12 @@ export async function syncAll(): Promise<SyncResult> {
     { local: procedures, remote: "procedures" },
     { local: appointments, remote: "appointments" },
     { local: followUps, remote: "follow_ups" },
+    { local: services, remote: "services" },
+    { local: serviceCategories, remote: "service_categories" },
   ] as const;
 
   for (const { local, remote } of tables) {
-    const result = await syncTable(local as typeof clients, remote);
+    const result = await syncTable(local as typeof clients, remote, userId);
     totalSynced += result.synced;
     totalErrors += result.errors;
   }
@@ -106,9 +119,11 @@ export async function syncAll(): Promise<SyncResult> {
       .where(isNull(photos.syncedAt));
 
     for (const photo of unsyncedPhotos) {
+      const photoRecord = toSnakeCase(photo as Record<string, unknown>);
+      photoRecord.user_id = userId;
       const { error } = await supabase
         .from("photos")
-        .upsert(toSnakeCase(photo as Record<string, unknown>), { onConflict: "id" });
+        .upsert(photoRecord, { onConflict: "id" });
 
       if (!error) {
         const now = new Date().toISOString();
@@ -133,8 +148,14 @@ export async function syncAll(): Promise<SyncResult> {
   };
 }
 
+// Signed URLs last a year; regenerated on next sync if they ever expire.
+const SIGNED_URL_TTL = 60 * 60 * 24 * 365;
+
 export async function syncPhotosToStorage(): Promise<number> {
   if (!isSupabaseConfigured()) return 0;
+
+  const userId = await getCurrentUserId();
+  if (!userId) return 0;
 
   let uploaded = 0;
 
@@ -148,23 +169,25 @@ export async function syncPhotosToStorage(): Promise<number> {
       try {
         const response = await fetch(photo.localUri);
         const blob = await response.blob();
-        const path = `${photo.clientId}/${photo.procedureId}/${photo.id}.jpg`;
+        // Private bucket, scoped by user_id so Storage RLS can enforce ownership.
+        const path = `${userId}/${photo.clientId}/${photo.procedureId}/${photo.id}.jpg`;
 
         const { error } = await supabase.storage
           .from("photos")
-          .upload(path, blob, { contentType: "image/jpeg" });
+          .upload(path, blob, { contentType: "image/jpeg", upsert: true });
 
         if (!error) {
-          const { data } = supabase.storage
+          const { data } = await supabase.storage
             .from("photos")
-            .getPublicUrl(path);
+            .createSignedUrl(path, SIGNED_URL_TTL);
 
-          await db
-            .update(photos)
-            .set({ remoteUrl: data.publicUrl })
-            .where(eq(photos.id, photo.id));
-
-          uploaded++;
+          if (data?.signedUrl) {
+            await db
+              .update(photos)
+              .set({ remoteUrl: data.signedUrl })
+              .where(eq(photos.id, photo.id));
+            uploaded++;
+          }
         }
       } catch (error) {
         console.error("Photo upload error:", error);

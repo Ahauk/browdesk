@@ -22,16 +22,36 @@ import {
   FITZPATRICK_TYPES,
   REFERRAL_SOURCES,
 } from "@/constants";
-import {
-  SERVICE_ZONES,
-  calculateZonePrice,
-  getDisabledOptions,
-} from "@/constants/services";
 import { useClients } from "@/hooks/useClients";
 import { useProcedures } from "@/hooks/useProcedures";
+import { useServices } from "@/hooks/useServices";
+import { parseMoney, formatMoney } from "@/utils/money";
 import { pickPhoto, takePhoto, savePhoto } from "@/services/photo.service";
 import { colors, spacing, radius } from "@/theme";
-import type { FitzpatrickType } from "@/types/models";
+import type { FitzpatrickType, ServiceItem, ProcedureType } from "@/types/models";
+
+// Map a service category to the procedure's high-level type.
+function categoryToProcedureType(categoryKey: string): ProcedureType {
+  switch (categoryKey) {
+    case "cejas":
+      return "brows";
+    case "labios":
+      return "lips";
+    case "ojos":
+      return "eyes";
+    default:
+      return "other";
+  }
+}
+
+// Effective price of a service given the laser package toggle.
+function servicePrice(svc: ServiceItem, isPackage: boolean): number {
+  if (svc.pricingType === "variable") return 0;
+  if (svc.pricingType === "laser") {
+    return isPackage ? svc.packagePrice ?? 0 : svc.price ?? 0;
+  }
+  return svc.price ?? 0;
+}
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -73,6 +93,7 @@ export default function NewClientScreen() {
   const router = useRouter();
   const { createClient } = useClients();
   const { createProcedure } = useProcedures();
+  const { services, allCategories, categoryInfo } = useServices();
   const [step, setStep] = useState<Step>(1);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -93,12 +114,16 @@ export default function NewClientScreen() {
   const [fitzpatrickType, setFitzpatrickType] =
     useState<FitzpatrickType | null>(null);
 
-  // ── Step 3: Servicio a realizar ──
-  const [activeZones, setActiveZones] = useState<Set<string>>(new Set());
-  const [zoneSelections, setZoneSelections] = useState<
-    Record<string, Set<string>>
-  >({});
-  const [laserPackage, setLaserPackage] = useState<Record<string, boolean>>({});
+  // ── Step 3: Servicio a realizar (catálogo del usuario) ──
+  const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(
+    new Set()
+  );
+  // laser service id → is 10-session package
+  const [servicePackage, setServicePackage] = useState<Record<string, boolean>>(
+    {}
+  );
+  // variable service id → quoted price (typed at registration)
+  const [quotePrices, setQuotePrices] = useState<Record<string, string>>({});
   const guarantee = true;
   const guaranteeDays = "15";
   const [hasPriorWork, setHasPriorWork] = useState(false);
@@ -163,41 +188,41 @@ export default function NewClientScreen() {
   };
 
   // ── Zone toggles (only show/hide, never delete selections) ──
-  const toggleZone = (zoneKey: string) => {
-    setActiveZones((prev) => {
+  const toggleService = (id: string) => {
+    setSelectedServiceIds((prev) => {
       const next = new Set(prev);
-      if (next.has(zoneKey)) {
-        next.delete(zoneKey);
-      } else {
-        next.add(zoneKey);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
-  const selectZoneOption = (
-    zoneKey: string,
-    optionKey: string,
-    mode: "checkbox" | "radio"
-  ) => {
-    setZoneSelections((prev) => {
-      if (mode === "radio") {
-        const current = prev[zoneKey];
-        if (current?.has(optionKey)) {
-          return { ...prev, [zoneKey]: new Set<string>() };
-        }
-        return { ...prev, [zoneKey]: new Set([optionKey]) };
-      }
-      const current = prev[zoneKey] ?? new Set<string>();
-      const next = new Set(current);
-      if (next.has(optionKey)) {
-        next.delete(optionKey);
-      } else {
-        next.add(optionKey);
-      }
-      return { ...prev, [zoneKey]: next };
-    });
+  // Effective amount for a service, using the typed quote for variable ones.
+  const serviceAmount = (svc: ServiceItem): number => {
+    if (svc.pricingType === "variable") {
+      return parseMoney(quotePrices[svc.id] ?? "");
+    }
+    return servicePrice(svc, servicePackage[svc.id] ?? false);
   };
+
+  // Category keys with services, ordered (predefined first, then any extras).
+  const usedCategoryKeys = Array.from(
+    new Set(services.map((s) => s.categoryKey))
+  );
+  const orderedCategoryKeys = [
+    ...allCategories.map((c) => c.key).filter((k) => usedCategoryKeys.includes(k)),
+    ...usedCategoryKeys.filter((k) => !allCategories.some((c) => c.key === k)),
+  ];
+
+  const selectedServices = services.filter((s) => selectedServiceIds.has(s.id));
+  const grandTotal = selectedServices.reduce(
+    (sum, s) => sum + serviceAmount(s),
+    0
+  );
+  // A variable service with no quote typed yet still needs "+ cotización".
+  const hasPendingQuote = selectedServices.some(
+    (s) => s.pricingType === "variable" && !(serviceAmount(s) > 0)
+  );
 
   // ── Clinical answer toggle ──
   const toggleClinicalAnswer = (key: string) => {
@@ -251,33 +276,20 @@ export default function NewClientScreen() {
         }
       }
 
-      // Create one procedure per selected service zone
+      // Create one procedure per selected service.
       const today = new Date().toISOString().split("T")[0];
-      for (const zone of SERVICE_ZONES) {
-        const sel = zoneSelections[zone.key];
-        if (!sel || sel.size === 0) continue;
-
-        const isLaserPkg = laserPackage[zone.key] ?? false;
-        const pricing = calculateZonePrice(zone, sel, isLaserPkg);
-        const selectedOptions = zone.options
-          .filter((o) => sel.has(o.key))
-          .map((o) => o.label);
-
-        // Map zone key to procedure type
-        const typeMap: Record<string, string> = {
-          ojos: "eyes",
-          cejas: "brows",
-          labios: "lips",
-          depilacion: "other",
-          otros: "other",
-        };
-
+      for (const svc of selectedServices) {
+        const isPackage = servicePackage[svc.id] ?? false;
         await createProcedure({
           clientId: result.id,
-          type: (typeMap[zone.key] || "other") as any,
-          technique: selectedOptions.join(", "),
-          zoneDetails: JSON.stringify({ [zone.key]: Array.from(sel) }),
-          cost: pricing.total,
+          type: categoryToProcedureType(svc.categoryKey),
+          technique: svc.name,
+          zoneDetails: JSON.stringify({
+            categoryKey: svc.categoryKey,
+            serviceId: svc.id,
+            package: isPackage,
+          }),
+          cost: serviceAmount(svc),
           guarantee: true,
           guaranteeDays: 15,
           date: today,
@@ -510,262 +522,136 @@ export default function NewClientScreen() {
           <View style={styles.formGroup}>
             <SectionHeader title="Selecciona el servicio" />
 
-            {SERVICE_ZONES.map((zone) => {
-              const isActive = activeZones.has(zone.key);
-              const selected = zoneSelections[zone.key] ?? new Set<string>();
-              const isLaserPkg = laserPackage[zone.key] ?? false;
-              const pricing = calculateZonePrice(zone, selected, isLaserPkg);
-              const disabledOpts = getDisabledOptions(zone, selected);
-
-              return (
-                <View key={zone.key} style={styles.zoneBlock}>
-                  {/* Zone toggle header */}
-                  <Pressable
-                    onPress={() => toggleZone(zone.key)}
-                    style={[
-                      styles.zoneToggle,
-                      isActive && styles.zoneToggleActive,
-                    ]}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <ZoneIcon
-                        icon={zone.icon}
-                        size={20}
-                        color={isActive ? colors.white : colors.textSecondary}
-                      />
-                      <Text
-                        style={[
-                          styles.zoneToggleText,
-                          isActive && styles.zoneToggleTextActive,
-                        ]}
-                      >
-                        {zone.label}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name={isActive ? "chevron-up" : "chevron-down"}
-                      size={18}
-                      color={isActive ? colors.white : colors.textSecondary}
-                    />
-                  </Pressable>
-
-                  {/* Expanded options */}
-                  {isActive && (
-                    <View style={styles.zoneOptionsGrid}>
-                      {zone.options.map((opt) => {
-                        const optSelected = selected.has(opt.key);
-                        const isDisabled = disabledOpts.has(opt.key);
-                        const isRadio = zone.selectionMode === "radio";
-                        const iconName = isRadio
-                          ? optSelected
-                            ? "radio-button-on"
-                            : "radio-button-off"
-                          : optSelected
-                            ? "checkbox"
-                            : "square-outline";
-
-                        return (
-                          <Pressable
-                            key={opt.key}
-                            onPress={() => {
-                              if (isDisabled) return;
-                              selectZoneOption(
-                                zone.key,
-                                opt.key,
-                                zone.selectionMode
-                              );
-                            }}
-                            style={[
-                              styles.zoneOption,
-                              isDisabled && { opacity: 0.35 },
-                            ]}
-                          >
-                            <Ionicons
-                              name={iconName}
-                              size={22}
-                              color={
-                                isDisabled
-                                  ? colors.divider
-                                  : optSelected
-                                    ? colors.primary
-                                    : colors.textSecondary
-                              }
-                            />
-                            <View style={{ flex: 1 }}>
-                              <Text
+            {services.length === 0 ? (
+              <View style={styles.noServicesBox}>
+                <Ionicons
+                  name="pricetags-outline"
+                  size={40}
+                  color={colors.textLight}
+                />
+                <Text style={styles.noServicesTitle}>
+                  Aún no tienes servicios
+                </Text>
+                <Text style={styles.noServicesText}>
+                  Configura los servicios que ofreces (con sus precios) para
+                  poder seleccionarlos aquí.
+                </Text>
+                <Button
+                  title="Configurar servicios"
+                  variant="outline"
+                  onPress={() => router.push("/services")}
+                />
+              </View>
+            ) : (
+              <>
+                {orderedCategoryKeys.map((catKey) => {
+                  const cat = categoryInfo(catKey);
+                  return (
+                    <View key={catKey} style={styles.catBlock}>
+                      <View style={styles.catHeader}>
+                        <ZoneIcon
+                          icon={cat.icon}
+                          size={18}
+                          color={colors.primary}
+                        />
+                        <Text style={styles.catTitle}>{cat.label}</Text>
+                      </View>
+                      {services
+                        .filter((s) => s.categoryKey === catKey)
+                        .map((svc) => {
+                          const sel = selectedServiceIds.has(svc.id);
+                          const isPackage = servicePackage[svc.id] ?? false;
+                          return (
+                            <View key={svc.id}>
+                              <Pressable
+                                onPress={() => toggleService(svc.id)}
                                 style={[
-                                  styles.zoneOptionText,
-                                  optSelected &&
-                                    styles.zoneOptionTextSelected,
-                                  isDisabled && { color: colors.divider },
+                                  styles.svcRow,
+                                  sel && styles.svcRowSelected,
                                 ]}
                               >
-                                {opt.label}
-                              </Text>
-                              {/* Per-item laser prices */}
-                              {zone.pricingMode === "laser" && opt.price && (
-                                <Text style={styles.optionPriceHint}>
-                                  Sesión ${opt.price?.toLocaleString()} · Paquete 10 ${opt.packagePrice?.toLocaleString()}
-                                </Text>
+                                <Ionicons
+                                  name={sel ? "checkbox" : "square-outline"}
+                                  size={22}
+                                  color={
+                                    sel ? colors.primary : colors.textSecondary
+                                  }
+                                />
+                                <View style={{ flex: 1 }}>
+                                  <Text
+                                    style={[
+                                      styles.svcName,
+                                      sel && styles.svcNameSelected,
+                                    ]}
+                                  >
+                                    {svc.name}
+                                  </Text>
+                                  <Text style={styles.svcPrice}>
+                                    {svc.pricingType === "variable"
+                                      ? "A cotizar"
+                                      : svc.pricingType === "laser"
+                                        ? `Sesión $${(svc.price ?? 0).toLocaleString()} · Paquete $${(svc.packagePrice ?? 0).toLocaleString()}`
+                                        : `$${(svc.price ?? 0).toLocaleString()}`}
+                                  </Text>
+                                </View>
+                              </Pressable>
+                              {sel && svc.pricingType === "laser" && (
+                                <View style={styles.laserToggleRow}>
+                                  <Text style={styles.toggleLabel}>
+                                    ¿Paquete 10 sesiones?
+                                  </Text>
+                                  <Switch
+                                    value={isPackage}
+                                    onValueChange={(v) =>
+                                      setServicePackage((p) => ({
+                                        ...p,
+                                        [svc.id]: v,
+                                      }))
+                                    }
+                                    trackColor={{
+                                      false: colors.divider,
+                                      true: colors.accent,
+                                    }}
+                                    thumbColor={colors.white}
+                                  />
+                                </View>
+                              )}
+                              {sel && svc.pricingType === "variable" && (
+                                <View style={styles.quoteRow}>
+                                  <Input
+                                    label="Precio cotizado"
+                                    placeholder="$0"
+                                    value={quotePrices[svc.id] ?? ""}
+                                    onChangeText={(t) =>
+                                      setQuotePrices((p) => ({
+                                        ...p,
+                                        [svc.id]: formatMoney(t),
+                                      }))
+                                    }
+                                    keyboardType="numeric"
+                                  />
+                                </View>
                               )}
                             </View>
-                          </Pressable>
-                        );
-                      })}
-
-                      {/* Laser: package toggle */}
-                      {zone.pricingMode === "laser" && selected.size > 0 && (
-                        <View style={styles.laserToggleRow}>
-                          <Text style={styles.toggleLabel}>
-                            ¿Paquete 10 sesiones?
-                          </Text>
-                          <Switch
-                            value={isLaserPkg}
-                            onValueChange={(v) =>
-                              setLaserPackage((p) => ({
-                                ...p,
-                                [zone.key]: v,
-                              }))
-                            }
-                            trackColor={{
-                              false: colors.divider,
-                              true: colors.accent,
-                            }}
-                            thumbColor={colors.white}
-                          />
-                        </View>
-                      )}
-
-                      {/* Variable price message */}
-                      {zone.pricingMode === "variable" && selected.size > 0 && (
-                        <View style={styles.variablePriceBox}>
-                          <Ionicons
-                            name="information-circle-outline"
-                            size={18}
-                            color={colors.accent}
-                          />
-                          <Text style={styles.variablePriceText}>
-                            {zone.variableMessage}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Price display */}
-                      {!pricing.isVariable && selected.size > 0 && (
-                        <View style={styles.priceBox}>
-                          {pricing.originalTotal &&
-                          pricing.originalTotal !== pricing.total ? (
-                            <View>
-                              <View style={styles.priceRow}>
-                                <Text style={styles.priceOriginal}>
-                                  ${pricing.originalTotal.toLocaleString()}
-                                </Text>
-                                <Text style={styles.priceTotal}>
-                                  ${pricing.total.toLocaleString()} MXN
-                                </Text>
-                              </View>
-                              <View style={styles.discountBadge}>
-                                <Ionicons
-                                  name="pricetag-outline"
-                                  size={14}
-                                  color={colors.success}
-                                />
-                                <Text style={styles.discountText}>
-                                  Ahorras ${pricing.discount?.toLocaleString()} MXN
-                                </Text>
-                              </View>
-                            </View>
-                          ) : (
-                            <Text style={styles.priceTotal}>
-                              ${pricing.total.toLocaleString()} MXN
-                            </Text>
-                          )}
-                        </View>
-                      )}
+                          );
+                        })}
                     </View>
-                  )}
-                </View>
-              );
-            })}
+                  );
+                })}
 
-            {/* ── Total general ── */}
-            {(() => {
-              let grandTotal = 0;
-              let grandOriginal = 0;
-              let hasVariable = false;
-              const items: { label: string; amount: number; original?: number }[] = [];
-
-              SERVICE_ZONES.forEach((zone) => {
-                const sel = zoneSelections[zone.key];
-                if (!sel || sel.size === 0) return;
-                const isLaserPkg = laserPackage[zone.key] ?? false;
-                const p = calculateZonePrice(zone, sel, isLaserPkg);
-                if (p.isVariable) {
-                  hasVariable = true;
-                  items.push({ label: zone.label, amount: 0 });
-                } else if (p.total > 0) {
-                  grandTotal += p.total;
-                  grandOriginal += p.originalTotal ?? p.total;
-                  items.push({
-                    label: zone.label,
-                    amount: p.total,
-                    original: p.originalTotal && p.originalTotal !== p.total ? p.originalTotal : undefined,
-                  });
-                }
-              });
-
-              if (items.length < 2) return null;
-
-              const totalDiscount = grandOriginal - grandTotal;
-
-              return (
-                <View style={styles.grandTotalBox}>
-                  <Text style={styles.grandTotalTitle}>Resumen de costos</Text>
-                  {items.map((item) => (
-                    <View key={item.label} style={styles.grandTotalRow}>
-                      <Text style={styles.grandTotalLabel}>{item.label}</Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        {item.original && (
-                          <Text style={styles.grandTotalStrikePrice}>
-                            ${item.original.toLocaleString()}
-                          </Text>
-                        )}
-                        <Text style={styles.grandTotalItemPrice}>
-                          {item.amount > 0
-                            ? `$${item.amount.toLocaleString()}`
-                            : "Por cotizar"}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-
-                  {totalDiscount > 0 && (
-                    <View style={styles.grandTotalSavings}>
-                      <Ionicons name="pricetag-outline" size={14} color={colors.success} />
-                      <Text style={styles.grandTotalSavingsText}>
-                        Descuento aplicado: -${totalDiscount.toLocaleString()} MXN
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={styles.grandTotalDivider} />
-                  <View style={styles.grandTotalRow}>
-                    <Text style={styles.grandTotalTotalLabel}>Total</Text>
-                    <View style={{ alignItems: "flex-end" }}>
-                      {totalDiscount > 0 && (
-                        <Text style={styles.grandTotalStrikePrice}>
-                          ${grandOriginal.toLocaleString()}
-                        </Text>
-                      )}
+                {selectedServices.length > 0 && (
+                  <View style={styles.grandTotalBox}>
+                    <View style={styles.grandTotalRow}>
+                      <Text style={styles.grandTotalTotalLabel}>Total</Text>
                       <Text style={styles.grandTotalTotalPrice}>
                         ${grandTotal.toLocaleString()} MXN
-                        {hasVariable ? " + cotización" : ""}
+                        {hasPendingQuote ? " + cotización" : ""}
                       </Text>
                     </View>
                   </View>
-                </View>
-              );
-            })()}
+                )}
+              </>
+            )}
 
             {/* Trabajo previo */}
             <SectionHeader title="Trabajo previo" />
@@ -1007,82 +893,49 @@ export default function NewClientScreen() {
             </View>
 
             {/* Servicios seleccionados */}
-            {(() => {
-              const serviceItems: { zone: string; icon: string; options: string[]; total: number; original?: number; isVariable: boolean }[] = [];
-              let grandTotal = 0;
-              let grandOriginal = 0;
-
-              SERVICE_ZONES.forEach((zone) => {
-                const sel = zoneSelections[zone.key];
-                if (!sel || sel.size === 0) return;
-                const isLaserPkg = laserPackage[zone.key] ?? false;
-                const p = calculateZonePrice(zone, sel, isLaserPkg);
-                const optionLabels = zone.options
-                  .filter((o) => sel.has(o.key))
-                  .map((o) => o.label);
-                grandTotal += p.total;
-                grandOriginal += p.originalTotal ?? p.total;
-                serviceItems.push({
-                  zone: zone.label,
-                  icon: zone.icon,
-                  options: optionLabels,
-                  total: p.total,
-                  original: p.originalTotal && p.originalTotal !== p.total ? p.originalTotal : undefined,
-                  isVariable: p.isVariable,
-                });
-              });
-
-              if (serviceItems.length === 0) return null;
-              const totalDiscount = grandOriginal - grandTotal;
-
-              return (
-                <View style={[styles.summaryCard, { marginTop: 12 }]}>
-                  <Text style={styles.summaryTitle}>Servicios</Text>
-                  {serviceItems.map((item) => (
-                    <View key={item.zone} style={{ marginBottom: 10 }}>
-                      <View style={styles.summaryRow}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-                          <ZoneIcon icon={item.icon} size={16} color={colors.primary} />
-                          <Text style={[styles.summaryLabel, { fontWeight: "600" }]}>{item.zone}</Text>
-                        </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                          {item.original && (
-                            <Text style={{ fontSize: 12, color: colors.textSecondary, textDecorationLine: "line-through" }}>
-                              ${item.original.toLocaleString()}
-                            </Text>
-                          )}
-                          <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>
-                            {item.isVariable ? "Por cotizar" : `$${item.total.toLocaleString()}`}
-                          </Text>
-                        </View>
-                      </View>
-                      {item.options.map((opt) => (
-                        <Text key={opt} style={{ fontSize: 12, color: colors.textSecondary, marginLeft: 8, marginTop: 2 }}>
-                          • {opt}
+            {selectedServices.length > 0 && (
+              <View style={[styles.summaryCard, { marginTop: 12 }]}>
+                <Text style={styles.summaryTitle}>Servicios</Text>
+                {selectedServices.map((svc) => {
+                  const isPackage = servicePackage[svc.id] ?? false;
+                  const amount = serviceAmount(svc);
+                  const cat = categoryInfo(svc.categoryKey);
+                  return (
+                    <View key={svc.id} style={styles.summaryRow}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                        <ZoneIcon
+                          icon={cat.icon}
+                          size={16}
+                          color={colors.primary}
+                        />
+                        <Text style={[styles.summaryLabel, { fontWeight: "600" }]}>
+                          {svc.name}
+                          {svc.pricingType === "laser"
+                            ? isPackage
+                              ? " (paquete)"
+                              : " (sesión)"
+                            : ""}
                         </Text>
-                      ))}
-                    </View>
-                  ))}
-
-                  <View style={styles.grandTotalDivider} />
-                  <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryLabel, { fontWeight: "bold", fontSize: 15 }]}>Total</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.primary }}>
-                      ${grandTotal.toLocaleString()} MXN
-                    </Text>
-                  </View>
-                  {totalDiscount > 0 && (
-                    <View style={styles.grandTotalSavings}>
-                      <Ionicons name="pricetag-outline" size={14} color={colors.success} />
-                      <Text style={styles.grandTotalSavingsText}>
-                        Ahorro total: ${totalDiscount.toLocaleString()} MXN
+                      </View>
+                      <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 15 }}>
+                        {svc.pricingType === "variable" && amount === 0
+                          ? "Por cotizar"
+                          : `$${amount.toLocaleString()}`}
                       </Text>
                     </View>
-                  )}
+                  );
+                })}
 
+                <View style={styles.grandTotalDivider} />
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { fontWeight: "bold", fontSize: 15 }]}>Total</Text>
+                  <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.primary }}>
+                    ${grandTotal.toLocaleString()} MXN
+                    {hasPendingQuote ? " + cotización" : ""}
+                  </Text>
                 </View>
-              );
-            })()}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -1095,7 +948,7 @@ export default function NewClientScreen() {
             onPress={handleNext}
             disabled={
               (step === 2 && fitzpatrickType === null) ||
-              (step === 3 && Object.values(zoneSelections).every((s) => s.size === 0)) ||
+              (step === 3 && selectedServiceIds.size === 0) ||
               (step === 5 && beforePhotos.length === 0)
             }
           />
@@ -1467,6 +1320,46 @@ const styles = StyleSheet.create({
   },
 
   // ── Grand Total ──
+  // ── Catalog-based service selection ──
+  noServicesBox: {
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing["3xl"],
+    paddingHorizontal: spacing.lg,
+  },
+  noServicesTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
+  noServicesText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
+  catBlock: { marginBottom: spacing.lg },
+  catHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  catTitle: { fontSize: 15, fontWeight: "600", color: colors.primary },
+  svcRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.surface,
+  },
+  svcRowSelected: { borderColor: colors.primary },
+  svcName: { fontSize: 15, color: colors.text },
+  svcNameSelected: { fontWeight: "600" },
+  svcPrice: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  quoteRow: { marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
+
   grandTotalBox: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

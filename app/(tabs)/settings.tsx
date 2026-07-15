@@ -10,11 +10,15 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Avatar, Input, Button } from "@/components/ui";
 import { useProfile } from "@/hooks/useProfile";
+import { useAuthStore } from "@/stores/auth.store";
+import { signOut } from "@/services/session.service";
+import { wipeLocalData } from "@/db/client";
+import { brandName } from "@/utils/branding";
 import { pickPhoto, takePhoto } from "@/services/photo.service";
 // backup service available but sync via Supabase is primary backup
 import {
@@ -42,7 +46,30 @@ type PinStep = "verify" | "new" | "confirm";
 
 /* ═══════════════════════ Main Screen ═══════════════════════ */
 export default function SettingsScreen() {
+  const router = useRouter();
   const { profile, loading, updateProfile, refresh } = useProfile();
+  const { setCloudSession, setAuthenticated } = useAuthStore();
+
+  const handleLogout = useCallback(() => {
+    Alert.alert(
+      "Cerrar sesión",
+      "Se borrarán los datos de este dispositivo. Volverán a descargarse de la nube al iniciar sesión de nuevo.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Cerrar sesión",
+          style: "destructive",
+          onPress: async () => {
+            await signOut();
+            wipeLocalData();
+            setCloudSession(null);
+            setAuthenticated(false);
+            router.replace("/auth");
+          },
+        },
+      ]
+    );
+  }, [router, setCloudSession, setAuthenticated]);
 
   // Edit mode
   const [editingProfile, setEditingProfile] = useState(false);
@@ -281,6 +308,31 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        {/* ── Business section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mi negocio</Text>
+          <View style={styles.card}>
+            <Pressable
+              onPress={() => router.push("/services")}
+              style={styles.settingsRow}
+            >
+              <View style={styles.settingsRowLeft}>
+                <Ionicons
+                  name="pricetags-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.settingsLabel}>Servicios y precios</Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+        </View>
+
         {/* ── Security section ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Seguridad</Text>
@@ -451,10 +503,19 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
+        {/* ── Logout ── */}
+        <View style={styles.logoutSection}>
+          <Button
+            title="Cerrar sesión"
+            variant="outline"
+            onPress={handleLogout}
+          />
+        </View>
+
         {/* ── App info ── */}
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>BrowDesk v1.0.0</Text>
-          <Text style={styles.appInfoText}>Carolina Vazquez Studio</Text>
+          <Text style={styles.appInfoText}>{brandName(profile)}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -471,6 +532,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  logoutSection: {
+    paddingHorizontal: spacing["2xl"],
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
 
   // Header

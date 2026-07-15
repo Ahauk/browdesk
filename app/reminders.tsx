@@ -14,6 +14,8 @@ import * as Linking from "expo-linking";
 import { Avatar } from "@/components/ui";
 import { useAppointments } from "@/hooks/useAppointments";
 import { useClients } from "@/hooks/useClients";
+import { useProfile } from "@/hooks/useProfile";
+import { brandName } from "@/utils/branding";
 import { fullName, formatTime } from "@/utils/format";
 import { PROCEDURE_TYPES } from "@/constants";
 import { colors, spacing, radius } from "@/theme";
@@ -27,6 +29,8 @@ export default function RemindersScreen() {
   const router = useRouter();
   const { appointments } = useAppointments();
   const { getClient } = useClients();
+  const { profile } = useProfile();
+  const signature = profile?.name?.trim() || brandName(profile);
 
   const [clientMap, setClientMap] = useState<Record<string, Client>>({});
   const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
@@ -82,7 +86,7 @@ export default function RemindersScreen() {
     return (
       `Hola ${client.firstName}! Te recuerdo que mañana ${dayLabel} ` +
       `tienes tu cita de ${typeLabel} a las ${timeLabel}. ` +
-      `Te espero! -- Carolina Vazquez`
+      `Te espero! -- ${signature}`
     );
   };
 

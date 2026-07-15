@@ -2,6 +2,7 @@ import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
 export const clients = sqliteTable("clients", {
   id: text("id").primaryKey(),
+  userId: text("user_id"), // Supabase auth.uid() — set on login/create
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   phone: text("phone").notNull(),
@@ -32,6 +33,7 @@ export const clients = sqliteTable("clients", {
 
 export const procedures = sqliteTable("procedures", {
   id: text("id").primaryKey(),
+  userId: text("user_id"),
   clientId: text("client_id")
     .notNull()
     .references(() => clients.id),
@@ -55,6 +57,7 @@ export const procedures = sqliteTable("procedures", {
 
 export const photos = sqliteTable("photos", {
   id: text("id").primaryKey(),
+  userId: text("user_id"),
   procedureId: text("procedure_id"),
   clientId: text("client_id")
     .notNull()
@@ -68,6 +71,7 @@ export const photos = sqliteTable("photos", {
 
 export const appointments = sqliteTable("appointments", {
   id: text("id").primaryKey(),
+  userId: text("user_id"),
   clientId: text("client_id")
     .notNull()
     .references(() => clients.id),
@@ -87,6 +91,7 @@ export const appointments = sqliteTable("appointments", {
 
 export const followUps = sqliteTable("follow_ups", {
   id: text("id").primaryKey(),
+  userId: text("user_id"),
   procedureId: text("procedure_id").references(() => procedures.id),
   appointmentId: text("appointment_id").references(() => appointments.id),
   clientId: text("client_id")
@@ -102,15 +107,43 @@ export const followUps = sqliteTable("follow_ups", {
 
 export const inspirations = sqliteTable("inspirations", {
   id: text("id").primaryKey(),
+  userId: text("user_id"),
   category: text("category").notNull(), // "brows" | "lips" | "eyes"
   localUri: text("local_uri").notNull(),
   caption: text("caption"),
   createdAt: text("created_at").notNull(),
 });
 
+export const services = sqliteTable("services", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  name: text("name").notNull(),
+  categoryKey: text("category_key").notNull(),
+  pricingType: text("pricing_type").notNull(), // "fixed" | "laser" | "variable"
+  price: real("price"),
+  packagePrice: real("package_price"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  syncedAt: text("synced_at"),
+});
+
+export const serviceCategories = sqliteTable("service_categories", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  label: text("label").notNull(),
+  icon: text("icon").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  syncedAt: text("synced_at"),
+});
+
 export const userProfile = sqliteTable("user_profile", {
   id: text("id").primaryKey(),
+  userId: text("user_id"), // Supabase auth.uid() bound to this device's profile
   name: text("name").notNull(),
+  studioName: text("studio_name"), // white-label brand shown across the app
+  logoUri: text("logo_uri"), // user's studio logo (splash, home, unlock)
+  treatment: text("treatment"), // "feminine" | "masculine" | "neutral" — greeting tone
   email: text("email"),
   avatarUri: text("avatar_uri"),
   biometricEnabled: integer("biometric_enabled", { mode: "boolean" })

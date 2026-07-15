@@ -1,4 +1,14 @@
-import { View, TextInput, Text, StyleSheet, TextStyle, ViewStyle } from "react-native";
+import { useState } from "react";
+import {
+  View,
+  TextInput,
+  Text,
+  Pressable,
+  StyleSheet,
+  TextStyle,
+  TextInputProps,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius } from "@/theme";
 
 interface InputProps {
@@ -14,6 +24,13 @@ interface InputProps {
   editable?: boolean;
   maxLength?: number;
   error?: string;
+  // Autofill / QuickType hints (iOS email + password suggestions)
+  autoComplete?: TextInputProps["autoComplete"];
+  textContentType?: TextInputProps["textContentType"];
+  autoCapitalize?: TextInputProps["autoCapitalize"];
+  autoCorrect?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 const inputVariantStyles: Record<string, TextStyle> = {
@@ -39,7 +56,15 @@ export function Input({
   editable = true,
   maxLength,
   error,
+  autoComplete,
+  textContentType,
+  autoCapitalize,
+  autoCorrect,
+  onFocus,
+  onBlur,
 }: InputProps) {
+  const [hidden, setHidden] = useState(secureTextEntry);
+
   return (
     <View style={styles.container}>
       {label && (
@@ -47,24 +72,49 @@ export function Input({
           {label}
         </Text>
       )}
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.brand.gray}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        numberOfLines={numberOfLines}
-        secureTextEntry={secureTextEntry}
-        editable={editable}
-        maxLength={maxLength}
-        style={[
-          styles.input,
-          inputVariantStyles[variant],
-          multiline && styles.multiline,
-          error ? styles.inputError : undefined,
-        ]}
-      />
+      <View style={styles.inputWrap}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.brand.gray}
+          keyboardType={keyboardType}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+          secureTextEntry={secureTextEntry && hidden}
+          editable={editable}
+          maxLength={maxLength}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          style={[
+            styles.input,
+            inputVariantStyles[variant],
+            multiline && styles.multiline,
+            secureTextEntry && styles.inputWithIcon,
+            error ? styles.inputError : undefined,
+          ]}
+        />
+        {secureTextEntry && (
+          <Pressable
+            style={styles.eyeButton}
+            onPress={() => setHidden((h) => !h)}
+            hitSlop={8}
+            accessibilityLabel={
+              hidden ? "Mostrar contraseña" : "Ocultar contraseña"
+            }
+          >
+            <Ionicons
+              name={hidden ? "eye-outline" : "eye-off-outline"}
+              size={20}
+              color={variant === "dark" ? colors.brand.gray : colors.textSecondary}
+            />
+          </Pressable>
+        )}
+      </View>
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
@@ -78,15 +128,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
   },
+  inputWrap: {
+    position: "relative",
+    justifyContent: "center",
+  },
   input: {
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     fontSize: 15,
   },
+  inputWithIcon: {
+    paddingRight: 48,
+  },
   multiline: {
     minHeight: 100,
     textAlignVertical: "top",
+  },
+  eyeButton: {
+    position: "absolute",
+    right: spacing.md,
+    height: "100%",
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
   inputError: {
     borderWidth: 1,

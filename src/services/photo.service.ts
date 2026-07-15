@@ -12,11 +12,43 @@ import { photos } from "@/db/schema";
 import type { Photo, PhotoType } from "@/types/models";
 
 const PHOTOS_DIR = `${documentDirectory}photos/`;
+const BRANDING_DIR = `${documentDirectory}branding/`;
 
 async function ensurePhotosDir() {
   const dirInfo = await getInfoAsync(PHOTOS_DIR);
   if (!dirInfo.exists) {
     await makeDirectoryAsync(PHOTOS_DIR, { intermediates: true });
+  }
+}
+
+/**
+ * Pick a square logo from the library and persist it to the app's document
+ * directory (so it survives the picker cache being cleared). Returns the
+ * local uri, or null if cancelled.
+ */
+export async function pickAndSaveLogo(): Promise<string | null> {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets[0]) return null;
+
+    const dirInfo = await getInfoAsync(BRANDING_DIR);
+    if (!dirInfo.exists) {
+      await makeDirectoryAsync(BRANDING_DIR, { intermediates: true });
+    }
+
+    const sourceUri = result.assets[0].uri;
+    const extension = sourceUri.split(".").pop()?.split("?")[0] || "jpg";
+    const localUri = `${BRANDING_DIR}logo-${randomUUID()}.${extension}`;
+    await copyAsync({ from: sourceUri, to: localUri });
+    return localUri;
+  } catch (error) {
+    console.error("Error picking logo:", error);
+    return null;
   }
 }
 

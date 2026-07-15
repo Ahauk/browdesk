@@ -6,6 +6,7 @@ export type FitzpatrickType = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface Client {
   id: string;
+  userId?: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -51,6 +52,7 @@ export interface NeedleEntry {
 
 export interface Procedure {
   id: string;
+  userId?: string;
   clientId: string;
   type: ProcedureType;
   technique: string;
@@ -75,6 +77,7 @@ export interface Procedure {
 
 export interface Photo {
   id: string;
+  userId?: string;
   procedureId?: string;
   clientId: string;
   type: PhotoType;
@@ -86,6 +89,7 @@ export interface Photo {
 
 export interface Appointment {
   id: string;
+  userId?: string;
   clientId: string;
   procedureType?: ProcedureType;
   procedureTypes?: string; // JSON array of ProcedureType keys
@@ -103,6 +107,7 @@ export interface Appointment {
 
 export interface FollowUp {
   id: string;
+  userId?: string;
   procedureId?: string;
   appointmentId?: string;
   clientId: string;
@@ -114,19 +119,51 @@ export interface FollowUp {
   syncedAt?: string;
 }
 
+export type PricingType = "fixed" | "laser" | "variable";
+
+export interface ServiceItem {
+  id: string;
+  userId?: string;
+  name: string;
+  categoryKey: string; // predefined key ("cejas"…) or a custom category id
+  pricingType: PricingType;
+  price?: number; // fixed price, or per-session price for laser
+  packagePrice?: number; // laser package price
+  createdAt: string;
+  updatedAt: string;
+  syncedAt?: string;
+}
+
+export interface ServiceCategoryRow {
+  id: string;
+  userId?: string;
+  label: string;
+  icon: string; // Ionicons name
+  createdAt: string;
+  updatedAt: string;
+  syncedAt?: string;
+}
+
 export type InspirationCategory = "brows" | "lips" | "eyes";
 
 export interface Inspiration {
   id: string;
+  userId?: string;
   category: InspirationCategory;
   localUri: string;
   caption?: string;
   createdAt: string;
 }
 
+export type Treatment = "feminine" | "masculine" | "neutral";
+
 export interface UserProfile {
   id: string;
+  userId?: string;
   name: string;
+  studioName?: string;
+  logoUri?: string;
+  treatment?: Treatment;
   email?: string;
   avatarUri?: string;
   biometricEnabled: boolean;
